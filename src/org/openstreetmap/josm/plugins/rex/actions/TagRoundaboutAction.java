@@ -24,44 +24,104 @@ import static org.openstreetmap.josm.tools.I18n.tr;
  * @author Gorm
  */
 public class TagRoundaboutAction extends JosmAction {
-    private static final String TITLE = tr("Add Roundabout Tag");
-
-    public TagRoundaboutAction() {
-        super(tr("REX"), "images/dialogs/logo-rex.png",
-                tr("Roundabout Expander"),
-                Shortcut.registerShortcut("menu:rex", tr("Menu: {0}", tr("Roundabout Expander")),
-                    KeyEvent.VK_R, Shortcut.ALT_CTRL), false);
-    }
+    private static final String TITLE = tr("Create Roundabout");
 
     @Override
-        public void actionPerformed( ActionEvent e ) {
-            //Figure out what we have to work with
-            Collection<OsmPrimitive> selection = getCurrentDataSet().getSelected();
-            List<Node> selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
-            List<Way> selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
-
-            //if(one single node selected) 
-            if( selection.size() == 1 && selectedNodes.size() == 1) {
-                //TODO a possible intermediate step before creating a real circle:
-                //Set some tags
-                Main.main.undoRedo.add(new ChangePropertyCommand(selection, "highway", "mini_roundabout"));
-                return;
-            }
-
-            //We have enough nodes selected, make a closed way with them
-            if(  selectedNodes.size() >= 2) {
-
-                for (Node n : selectedNodes) {
-                    moveWayEndNodeTowardsNextNode(n, -6);
-                }
-                makeCircle(selectedNodes);
-
-                return;
-            }
-
-            //We don't have a suitable selection
-            pri( tr("No appropriate selection. Try selecting a single node first."));
+        protected void updateEnabledState() {
+            if( getCurrentDataSet() == null ) {
+                setEnabled(false);
+            }  else
+                updateEnabledState(getCurrentDataSet().getSelected());
         }
+
+    @Override
+        protected void updateEnabledState( Collection<? extends OsmPrimitive> selection ) {
+            if( selection == null || selection.isEmpty() ) {
+                setEnabled(false);
+                return;
+            }
+
+        }
+
+    public TagRoundaboutAction() {
+        super(
+            tr("REX"),
+            "images/dialogs/logo-rex.png",
+            tr("Roundabout Expander"),
+            Shortcut.registerShortcut(
+                "menu:rex",
+                tr("Menu: {0}", tr("Roundabout Expander")),
+                KeyEvent.VK_R, Shortcut.ALT_CTRL
+            ),
+            false
+        );
+    }
+
+/**
+ * Called when the action is executed, typically with keyboard shortcut.
+ *
+ * This method looks at what is selected and performs one
+ * step of the gradual process of making a roundabout.
+ * After each step, we stop. This is to allow adjustments to be made
+ * by the user.
+ * So, to make a full roundabout with flares, one may repeatedly press
+ * the keyboard shortcut until the roundabout is made.
+ */
+    @Override
+    public void actionPerformed( ActionEvent e ) {
+        //Figure out what we have to work with:
+        Collection<OsmPrimitive> selection = getCurrentDataSet().getSelected();
+        List<Node> selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
+        List<Way> selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
+
+        //If we have one single node selected
+        if( selection.size() == 1 && selectedNodes.size() == 1) {
+            //Node is not tagged with highway=mini_roundabout {
+                tagAsRoundabout(selectedNodes.get(0));
+                return;
+            //} else {
+            //  untag highway=mini_roundabout and remember direction
+            //  analyze referenced ways and find what the circle should inherit
+            //  split all attached ways
+            //  ungroup the node
+            //for (Node n : selectedNodes) { //the nodes that was just ungrouped
+            //     moveWayEndNodeTowardsNextNode(n, -6);
+            // }
+            //  makeCircle(selectedNodes, center, direction)
+            //  tagAsRoundabout();
+            //  paste tags from major way
+            //  return;
+            //}
+        }
+
+        //If we have a closed way selected
+        //  Way is not tagged with junction=roundabout {
+        //      tagAsRoundabout();
+        //      return;
+        //  } else {
+        //      tagAsRoundabout(); //Becasuse this might clean up other issues.
+        //      selectPreFlareNodes(circle);
+        //      return;
+        //  }
+
+        //If one or more node is selected and common referenced way is roundabout {
+        //      makeFlares();
+        //      return;
+        //  }
+
+        //We don't have a suitable selection
+        pri( tr("No appropriate selection. Try selecting a single node in an intersection"));
+    }
+
+    /**
+    * Tag node as roundabout
+    *
+    * This method is overloaded with (Way circle)
+    */
+    public void tagAsRoundabout(Node node) {
+        Main.main.undoRedo.add(new ChangePropertyCommand(node, "junction", "roundabout"));
+        Main.main.undoRedo.add(new ChangePropertyCommand(node, "highway", "mini_roundabout"));
+    }
 
     /**
      * Create a roundabout way
@@ -88,10 +148,11 @@ public class TagRoundaboutAction extends JosmAction {
         Main.map.mapView.repaint();
 
         //Copy tagging from the most prominent way
+        pri(tr("Copying tags from the most prominent way"));
         //TODO
 
         //Add tagging
-        Main.main.undoRedo.add(new ChangePropertyCommand(circle, "junction", "roundabout"));
+        tagAsRoundabout(circle);
     }
 
     /**
@@ -129,6 +190,40 @@ public class TagRoundaboutAction extends JosmAction {
         node.setCoor(newpos);
     }
 
+    /**
+    * Tag closed way as roundabout
+    *
+    * This method is overloaded with (Node node)
+    */
+    public void tagAsRoundabout(Way circle) {
+        //remove oneway=* and highway=mini_roundabout
+        Main.main.undoRedo.add(new ChangePropertyCommand(circle, "junction", "roundabout"));
+    }
+
+    /**
+    * Select nodes that can be made to flares
+    */
+    public void selectPreFlareNodes(Way circle) {
+        //TODO    
+        pri(tr("Selecting flare nodes"));
+        //Set<Node> pre_flares = new Set();
+        //for(circle.getNodes() : node) {
+        //   if(referenced roads=2 and one is closed and roundabout) {
+        //      pre_flares.add(node);
+        //   }
+        //}
+        //select(pre_flares);
+    }
+
+    /**
+    * Make flares of incoming ways
+    */
+    public void makeFlares(Set<Node> nodes) {
+        //TODO    
+        pri(tr("Making flares"));
+        //
+    }
+
     public void pri(String str) {
         new Notification( str) .setIcon(JOptionPane.WARNING_MESSAGE) .show();
     }
@@ -158,24 +253,6 @@ public class TagRoundaboutAction extends JosmAction {
 
         return new LatLon(lat2, lon2);
     }
-
-
-    @Override
-        protected void updateEnabledState() {
-            if( getCurrentDataSet() == null ) {
-                setEnabled(false);
-            }  else
-                updateEnabledState(getCurrentDataSet().getSelected());
-        }
-
-    @Override
-        protected void updateEnabledState( Collection<? extends OsmPrimitive> selection ) {
-            if( selection == null || selection.isEmpty() ) {
-                setEnabled(false);
-                return;
-            }
-
-        }
-}
+} //
 
 //EOF
