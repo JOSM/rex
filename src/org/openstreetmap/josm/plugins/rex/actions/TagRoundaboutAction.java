@@ -102,7 +102,7 @@ public class TagRoundaboutAction extends JosmAction {
             selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
             //Add tagging
             tagAsRoundabout(selectedWays.get(0));
-                return;
+            return;
         }
 
         if (selection.size() == 1
@@ -175,8 +175,68 @@ public class TagRoundaboutAction extends JosmAction {
         node.remove("direction");
 
         splitall(node); 
-        //select result
+        unglueWays(node);
     }
+
+     /**
+     * dupe a single node into as many nodes as there are ways using it
+     */
+    private void unglueWays(Node selectedNode) {
+        List<Node> newNodes = new LinkedList<>();
+
+        Way wayWithSelectedNode = null;
+        LinkedList<Way> parentWays = new LinkedList<>();
+        for (OsmPrimitive osm : selectedNode.getReferrers()) {
+            if (osm.isUsable() && osm instanceof Way) {
+                Way w = (Way) osm;
+                if (wayWithSelectedNode == null && !w.isFirstLastNode(selectedNode)) {
+                    wayWithSelectedNode = w;
+                } else {
+                    parentWays.add(w);
+                }
+            }
+        }
+        //Why?
+        if (wayWithSelectedNode == null) {
+            parentWays.removeFirst();
+        }
+        //Then actually unglue each parent way
+        for (Way w : parentWays) {
+            Main.main.undoRedo.add(new ChangeCommand(w, modifyWay(selectedNode, w, newNodes)));
+        }
+
+        //Add the original node to newNodes to be selected
+        newNodes.add(selectedNode);
+
+        //Select the result
+        getCurrentDataSet().setSelected(newNodes);
+    }
+    /**
+     * dupe the given node of the given way
+     *
+     * assume that OrginalNode is in the way
+     *
+     * -the new node will be put into the parameter newNodes.
+     */
+    private Way modifyWay(Node originalNode, Way w, List<Node> newNodes) {
+        // clone the node for the way
+        Node newNode = new Node(originalNode, true /* clear OSM ID */);
+        newNodes.add(newNode);
+        Main.main.undoRedo.add(new AddCommand(newNode));
+
+        List<Node> nn = new ArrayList<>();
+        for (Node pushNode : w.getNodes()) {
+            if (originalNode == pushNode) {
+                pushNode = newNode;
+            }
+            nn.add(pushNode);
+        }
+        Way newWay = new Way(w);
+        newWay.setNodes(nn);
+
+        return newWay;
+    }
+
     public void test(List<Node> selectedNodes) {
         List<Node> ungrouped_nodes = selectedNodes;
 
