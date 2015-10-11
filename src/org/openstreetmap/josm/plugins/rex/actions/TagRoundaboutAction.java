@@ -95,13 +95,6 @@ public class TagRoundaboutAction extends JosmAction {
             }
         }
         if (selectedNodes.size() > 1) {
-            test(selectedNodes);
-
-            selection = getCurrentDataSet().getSelected();
-            selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
-            selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
-            //Add tagging
-            tagAsRoundabout(selectedWays.get(0));
             return;
         }
 
@@ -169,13 +162,53 @@ public class TagRoundaboutAction extends JosmAction {
         //  remember direction
         //  analyze referenced ways and find what tags the circle should inherit
 
-       //Remove irrelevant tagging
+        //Remove irrelevant tagging
         node.remove("highway");
         node.remove("junction");
         node.remove("direction");
 
         splitall(node); 
         unglueWays(node);
+        Collection<OsmPrimitive> selection = getCurrentDataSet().getSelected();
+        List<Node> selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
+        List<Way> selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
+        List<Node> ungrouped_nodes = selectedNodes;
+
+        //If there are only two nodes, the roundabout will be a bit flat
+        //so we add in a new point in the original center to get a triangle
+        if (ungrouped_nodes.size() == 2) {
+            pri("Sorry! Roundabout will look flat...");
+            //ungrouped_nodes.add(ungrouped_nodes.get(0));
+        }
+
+        //Move nodes outward
+        int roundabout_size = Integer.parseInt(Main.pref.get("rex.roundabout_size"));
+        for (Node n : ungrouped_nodes) {
+            moveWayEndNodeTowardsNextNode(n, roundabout_size/2);
+        }
+
+        //Sort nodes clockwise compared to the original center.
+        angularSort(ungrouped_nodes, selectedNodes.get(0));
+        
+        //Reverse to make it counter clockwise
+        Collections.reverse(ungrouped_nodes);
+
+        //Create the new roundabout
+        Way circle = makeCircle(ungrouped_nodes);
+
+        //Add it to osm
+        Main.main.undoRedo.add(new AddCommand(circle));
+
+        //Copy tagging from the most prominent way
+
+        //Select it
+        getCurrentDataSet().setSelected(circle);
+
+        selection = getCurrentDataSet().getSelected();
+        selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
+        selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
+        //Add tagging
+        tagAsRoundabout(selectedWays.get(0));
     }
 
      /**
@@ -190,6 +223,7 @@ public class TagRoundaboutAction extends JosmAction {
             if (osm.isUsable() && osm instanceof Way) {
                 Way w = (Way) osm;
                 if (wayWithSelectedNode == null && !w.isFirstLastNode(selectedNode)) {
+                    pri("wayWithSelected");
                     wayWithSelectedNode = w;
                 } else {
                     parentWays.add(w);
@@ -235,41 +269,6 @@ public class TagRoundaboutAction extends JosmAction {
         newWay.setNodes(nn);
 
         return newWay;
-    }
-
-    public void test(List<Node> selectedNodes) {
-        List<Node> ungrouped_nodes = selectedNodes;
-
-        //If there are only two nodes, the roundabout will be a bit flat
-        //so we add in a new point in the original center to get a triangle
-        if (ungrouped_nodes.size() == 2) {
-            pri("Sorry! Roundabout will look flat...");
-            //ungrouped_nodes.add(ungrouped_nodes.get(0));
-        }
-
-        //Move nodes outward
-        int roundabout_size = Integer.parseInt(Main.pref.get("rex.roundabout_size"));
-        for (Node n : ungrouped_nodes) {
-            moveWayEndNodeTowardsNextNode(n, roundabout_size/2);
-        }
-
-        //Sort nodes clockwise compared to the original center.
-        angularSort(ungrouped_nodes, selectedNodes.get(0));
-        
-        //Reverse to make it counter clockwise
-        Collections.reverse(ungrouped_nodes);
-
-        //Create the new roundabout
-        Way circle = makeCircle(ungrouped_nodes);
-
-        //Add it to osm
-        Main.main.undoRedo.add(new AddCommand(circle));
-
-        //Copy tagging from the most prominent way
-
-        //Select it
-        getCurrentDataSet().setSelected(circle);
-
     }
 
     /**
