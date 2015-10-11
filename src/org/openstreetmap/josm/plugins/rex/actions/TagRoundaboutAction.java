@@ -180,6 +180,13 @@ public class TagRoundaboutAction extends JosmAction {
     public void test(List<Node> selectedNodes) {
         List<Node> ungrouped_nodes = selectedNodes;
 
+        //If there are only two nodes, the roundabout will be a bit flat
+        //so we add in a new point in the original center to get a triangle
+        if (ungrouped_nodes.size() == 2) {
+            pri("Sorry! Roundabout will look flat...");
+            //ungrouped_nodes.add(ungrouped_nodes.get(0));
+        }
+
         //Move nodes outward
         int roundabout_size = Integer.parseInt(Main.pref.get("rex.roundabout_size"));
         for (Node n : ungrouped_nodes) {
