@@ -12,7 +12,6 @@
 **
 -->
 <project name="rex" default="dist" basedir=".">
-
     <!-- enter the SVN commit message -->
     <property name="commit.message" value="Commit message"/>
     <!-- enter the *lowest* JOSM version this plugin is currently compatible with -->
@@ -40,5 +39,5 @@
 	
     <!-- ** include targets that all plugins have in common ** -->
     <import file="../build-common.xml"/>
-  
+    <buildnumber/>
 </project>
