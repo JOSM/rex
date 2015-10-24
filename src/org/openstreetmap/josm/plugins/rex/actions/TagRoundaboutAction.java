@@ -63,6 +63,10 @@ public class TagRoundaboutAction extends JosmAction {
         if (roundabout_size < 1) {
             Main.pref.put("rex.roundabout_size", "12");
         }
+        int max_gap_degr = Integer.parseInt(Main.pref.get("rex.max_gap_degr"));
+        if (max_gap_degr < 1) {
+            Main.pref.put("rex.max_gap_degr", "30");
+        }
     }
 
 /**
@@ -83,10 +87,6 @@ public class TagRoundaboutAction extends JosmAction {
         List<Node> selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
         List<Way> selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
 
-        //TODO: BUG: If selected node only refers to one way and that
-        //way has the node as its end, dont do anything
-        //if () return;
-
         //If we have exactly one single node selected
         if (selection.size() == 1
             && selectedNodes.size() == 1
@@ -95,7 +95,22 @@ public class TagRoundaboutAction extends JosmAction {
             if (node.getKeys().get("highway") != "mini_roundabout") {
                 tagAsRoundabout(node);
             } else {
-                makeRoundabout(node);
+                //Get defaults
+                double radi = Integer.parseInt(Main.pref.get("rex.roundabout_size"))/2;
+                boolean lefthandtraffic = (Main.pref.get("mappaint.lefthandtraffic") == "true" ? true : false);
+                double max_gap = Math.toRadians(Integer.parseInt(Main.pref.get("rex.max_gap_degr")));
+
+                //See if user want another direction
+                if (node.getKeys().get("direction") == "clockwise") {
+                    lefthandtraffic = true;
+                }
+
+                //See if user want another size
+                if (node.getKeys().containsKey("diameter")) {
+                    radi = Double.parseDouble(node.getKeys().get("diameter"))/2;
+                }
+
+                makeRoundabout(node, radi, lefthandtraffic, max_gap);
             }
         }
 
@@ -115,6 +130,8 @@ public class TagRoundaboutAction extends JosmAction {
 
     /**
     * Tag node as roundabout
+    *
+    * @TODO direction as well?
     *
     * This method is overloaded with (Way circle)
     */
@@ -151,36 +168,25 @@ public class TagRoundaboutAction extends JosmAction {
     /**
      * Create a roundabout way
      *
-     * @param Node node Node to expand to Roundabout
+     * @param Node    node            Node to expand to Roundabout
+     * @param double  radi            Radius of roundabout in meter
+     * @param boolean lefthandtraffic Direction of roundabout
+     * @param double  max_gap         Max gap between nodes to make it pretty
      */
-    public void makeRoundabout(Node node) {
-        //get default direction
-        boolean lefthandtraffic = (Main.pref.get("mappaint.lefthandtraffic") == "true" ? true : false);
+    public void makeRoundabout(Node node, double radi, boolean lefthandtraffic, double max_gap) {
+        LatLon center = node.getCoor();
 
-        //See if user want another direction
-        if (node.getKeys().get("direction") == "clockwise") {
-            lefthandtraffic = true;
-        }
-
-        //Copy tags from most prominent way. That is the 'beefiest' highway
-        //of the ways passing through node, or the 'beefiest of any way
-        //ending at the node.
-        //
-        //if referenced ways.size()>1 
-        //foreach referenced way
-        //if node is first or last
-        //    put way in endways
-        //else
-        //    put in middleways
-        //if middleways.size() > 0
-        //  copy tags of the highest highway in middleways
-        //else
-        //  copy tags of the highest highway in endways
+        //Copy tags from most prominent way.
+        //TODO Prioritize through ways over single ways.
+        List<Way> refWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
+        Collections.sort(refWays, new HighComp(node));
+        Map<String,String> tagsToCopy = refWays.get(0).getKeys();
 
         //Remove irrelevant tagging from the node
         node.remove("highway");
         node.remove("junction");
         node.remove("direction");
+        node.remove("diameter");
         node.remove("oneway");
 
         //Split all ways using the node
@@ -190,48 +196,65 @@ public class TagRoundaboutAction extends JosmAction {
         //We'll continue working with the resulting nodes.
         List<Node> ungrouped_nodes = unglueWays(node);
 
-        //If there are only two nodes, the roundabout would be a bit flat.
-        //So we add in a new point in the original center to get a triangle
-        if (ungrouped_nodes.size() == 2) {
-            Node extra = new Node(node.getCoor());
-            Main.main.undoRedo.add(new AddCommand(extra));
-            ungrouped_nodes.add(extra);
+        //Move nodes towards the next node in each way
+        for (Node n : ungrouped_nodes) {
+            moveWayEndNodeTowardsNextNode(n, radi);
         }
 
-        //Move nodes outward, towards the next node in way
-        int roundabout_size = Integer.parseInt(Main.pref.get("rex.roundabout_size"));
-        for (Node n : ungrouped_nodes) {
-            moveWayEndNodeTowardsNextNode(n, roundabout_size/2);
+        //Construct some nodes to make it pretty.
+        Node filler_node = null; 
+        double heading1, heading2;
+        int s = ungrouped_nodes.size();
+        for (int i = 0, next_i = 0; i < s; i++) {
+            next_i = i+1;
+            //Reference back to start
+            if (next_i == s) next_i = 0;
+
+            heading1 = center.heading(ungrouped_nodes.get(i).getCoor());
+            heading2 = center.heading(ungrouped_nodes.get(next_i).getCoor());
+
+            //Add full circle (2PI) to heading 2 to "come around" the circle.
+            if (heading1>heading2) {heading2 += Math.PI*2;}
+            double gap = heading2 - heading1;
+            int fillers_to_make = (int)(gap/max_gap)-1;
+            if (fillers_to_make > 0) {
+                double to_next = gap / (fillers_to_make+1);
+                double next;
+                for (int j = 1; j <= fillers_to_make; j++) {
+                    next = heading1 + to_next * j;
+                    filler_node = new Node(moveHeadingDistance(center, next, radi));
+                    Main.main.undoRedo.add(new AddCommand(filler_node));
+                    ungrouped_nodes.add(filler_node);
+                }
+            } else {
+                //We don't need any fillers
+            }
         }
 
         //Sort nodes around the the original node. Clockwise if desired.
         //We do this to avoid funny figure of eight roundabouts.
-        angularSort(ungrouped_nodes, node, lefthandtraffic);
+        angularSort(ungrouped_nodes, center, lefthandtraffic);
         
-        //TODO here we may add some extra nodes to 
-        //make the resulting roundabout pretty.
-
         //Create the roundabout way
-        Way circle = new Way();
+        Way newRoundaboutWay = new Way();
 
         //add the nodes to the way
-        circle.setNodes(ungrouped_nodes);
+        newRoundaboutWay.setNodes(ungrouped_nodes);
 
         //and the first again, closing it
-        circle.addNode(circle.firstNode());
+        newRoundaboutWay.addNode(newRoundaboutWay.firstNode());
 
         //Paste tagging from the most prominent way
-        //TODO
-        //circle.setKeys(keys_copied_from_prominent_way);
+        newRoundaboutWay.setKeys(tagsToCopy);
 
         //Add tagging
-        tagAsRoundabout(circle);
+        tagAsRoundabout(newRoundaboutWay);
 
         //Add it to osm
-        Main.main.undoRedo.add(new AddCommand(circle));
+        Main.main.undoRedo.add(new AddCommand(newRoundaboutWay));
 
         //Select it
-        getCurrentDataSet().setSelected(circle);
+        getCurrentDataSet().setSelected(newRoundaboutWay);
 
     }
 
@@ -244,6 +267,10 @@ public class TagRoundaboutAction extends JosmAction {
         List<Way> referedWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
         //Walk through each and check if we are in the middle
         for (Way from : referedWays) {
+            if (from.isClosed()) {
+                pri("something funky is going to happen. we have a circular way");
+                continue;
+            }
             if (from.isFirstLastNode(node)) {
                 //do nothing if node is end of way
             } else {
@@ -263,6 +290,7 @@ public class TagRoundaboutAction extends JosmAction {
      * Unglue all ways using the selectedNode and return the set of new nodes
      *
      * @param Node selectedNode The original node
+     *
      * @return List<Node> The set of new nodes
      */
     private List<Node> unglueWays(Node selectedNode) {
@@ -332,7 +360,7 @@ public class TagRoundaboutAction extends JosmAction {
      * @param Node       center
      * @param boolean    clockwise
      */
-    private void angularSort(List<Node> nodes, Node center, boolean clockwise) {
+    private void angularSort(List<Node> nodes, LatLon center, boolean clockwise) {
         Collections.sort(nodes, new AngComp(center));
         //Reverse if we dont want it clockwise
         if (!clockwise) {
@@ -351,26 +379,33 @@ public class TagRoundaboutAction extends JosmAction {
         /**
          * To hold center Node
          */
-        private Node center;
+        private LatLon center;
 
         /**
          * Constructor with center specified
          */
-        public AngComp(Node center)
+        public AngComp(LatLon center)
         {
             this.center = center;
         }
 
         @Override
         public int compare(Node a, Node b) {
+            double ah = center.heading(a.getCoor());
+            double bh = center.heading(b.getCoor());
+            if (ah == bh) return 0;
+            return (ah < bh) ? 1 : -1;
+        }
+
+        public int compare_quick(Node a, Node b) {
             double ax = a.getCoor().lat();
             double ay = a.getCoor().lon();
 
             double bx = b.getCoor().lat();
             double by = b.getCoor().lon();
 
-            double cx = center.getCoor().lat();
-            double cy = center.getCoor().lon();
+            double cx = center.lat();
+            double cy = center.lon();
 
             //Get some simple cases out of the way
             if (ax >= 0 && bx < 0) {
@@ -392,13 +427,66 @@ public class TagRoundaboutAction extends JosmAction {
             return (ad > bd) ? 1 : 0;
 
         }
+    } //END AngComp
+
+    /**
+     * A comparator that may be used to sort Ways by beefyness
+     * relative to node.
+     * The comparator returns 1, 0 or -1
+     */
+    class HighComp implements Comparator<Way> {
+
+        /**
+         * To hold reference Node
+         */
+        private Node reference;
+
+        /**
+         * Constructor with center specified
+         */
+        public HighComp(Node reference)
+        {
+            this.reference = reference;
+        }
+
+        @Override
+        public int compare(Way a, Way b) {
+            List<String> rankList = new ArrayList<String>();
+            rankList.add("motorway");
+            rankList.add("trunk");
+            rankList.add("primary");
+            rankList.add("secondary");
+            rankList.add("tertiary");
+            rankList.add("unclassified");
+            rankList.add("residential");
+            rankList.add("service");
+            rankList.add("track");
+            rankList.add("cycleway");
+            rankList.add("footway");
+            rankList.add("path");
+            rankList.add("road");
+            //TODO add _link roads too.
+
+            //TODO don't crash if missing highway tag
+            String ahigh = a.getKeys().get("highway");
+            String bhigh = b.getKeys().get("highway");
+
+            if (rankList.indexOf(ahigh) == rankList.indexOf(bhigh)) {
+                return 0;
+            }
+            if (rankList.indexOf(ahigh) > rankList.indexOf(bhigh)) {
+                return 1;
+            } else {
+                return -1;
+            }
+        }
     }
 
     /**
-     * A selected node, being the first or last node in a way,
-     * move it x meter towards the next node in the way.
+     * Move a node it distance meter in the heading of 
+     * the next node in the way it is the last node in.
      *
-     * @param Node   node  Node to be moved
+     * @param Node   node     Node to be moved
      * @param double distance Distance to move node in meter
      */
     public void moveWayEndNodeTowardsNextNode( Node node, double distance) {
@@ -434,41 +522,15 @@ public class TagRoundaboutAction extends JosmAction {
     }
 
     /**
-    * Select nodes that can be made to flares
-    */
-    public void selectPreFlareNodes(Way circle) {
-        //TODO    
-        pri(tr("Selecting flare nodes"));
-        //Set<Node> pre_flares = new Set();
-        //for(circle.getNodes() : node) {
-        //   if(referenced roads=2 and one is closed and roundabout) {
-        //      pre_flares.add(node);
-        //   }
-        //}
-        //select(pre_flares);
-    }
-
-    /**
-    * Make flares of incoming ways
-    */
-    public void makeFlares(Set<Node> nodes) {
-        //TODO    
-        pri(tr("Making flares"));
-        //
-    }
-
-    public void pri(String str) {
-        new Notification( str) .setIcon(JOptionPane.WARNING_MESSAGE) .show();
-    }
-
-    /**
      * Return a LatLon moved distance meter in heading from start
      *
      * @param LatLon start point
      * @param double heading in radians
      * @param double distance in Meter
+     *
+     * @return LatLon New position
      */
-    public LatLon moveHeadingDistance(LatLon start, double heading, double distance)
+    private LatLon moveHeadingDistance(LatLon start, double heading, double distance)
     {
         double  R = 6378100; //Radius of the Earth in meters
 
@@ -484,6 +546,18 @@ public class TagRoundaboutAction extends JosmAction {
         return new LatLon(Math.toDegrees(lat2), Math.toDegrees(lon2));
     }
 
+    /**
+     * Output a message
+     *
+     * @param String Message
+     */
+    public void pri(String str) {
+        Notification t = new Notification(str);
+        t.setIcon(JOptionPane.WARNING_MESSAGE);
+        t.setDuration(Notification.TIME_SHORT);
+        t.show();
+        System.out.println(str);
+    }
 } //end TagRoundaboutAction
 
 //EOF
