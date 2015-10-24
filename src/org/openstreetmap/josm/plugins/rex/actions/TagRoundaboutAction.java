@@ -80,7 +80,7 @@ public class TagRoundaboutAction extends JosmAction {
  * the keyboard shortcut until the roundabout is made.
  */
     @Override
-    public void actionPerformed( ActionEvent e ) {
+    public void actionPerformed(ActionEvent e) {
 
         //Figure out what we have to work with:
         Collection<OsmPrimitive> selection = getCurrentDataSet().getSelected();
@@ -93,6 +93,7 @@ public class TagRoundaboutAction extends JosmAction {
         ) {
             Node node = selectedNodes.get(0);
             if (node.getKeys().get("highway") != "mini_roundabout") {
+                //Make it a mini roundabout
                 tagAsRoundabout(node);
             } else {
                 //Get defaults
@@ -138,6 +139,7 @@ public class TagRoundaboutAction extends JosmAction {
     public void tagAsRoundabout(Node node) {
         Main.main.undoRedo.add(new ChangePropertyCommand(node, "junction", "roundabout"));
         Main.main.undoRedo.add(new ChangePropertyCommand(node, "highway", "mini_roundabout"));
+        Main.main.undoRedo.add(new ChangePropertyCommand(node, "diameter", "12"));
     }
 
     /**
@@ -171,9 +173,10 @@ public class TagRoundaboutAction extends JosmAction {
      * @param Node    node            Node to expand to Roundabout
      * @param double  radi            Radius of roundabout in meter
      * @param boolean lefthandtraffic Direction of roundabout
-     * @param double  max_gap         Max gap between nodes to make it pretty
+     * @param double  max_gap         Max gap in radians between nodes to make it pretty
      */
     public void makeRoundabout(Node node, double radi, boolean lefthandtraffic, double max_gap) {
+        //Store center for later use
         LatLon center = node.getCoor();
 
         //Copy tags from most prominent way.
@@ -215,13 +218,17 @@ public class TagRoundaboutAction extends JosmAction {
 
             //Add full circle (2PI) to heading 2 to "come around" the circle.
             if (heading1>heading2) {heading2 += Math.PI*2;}
+
             double gap = heading2 - heading1;
-            int fillers_to_make = (int)(gap/max_gap)-1;
+            int fillers_to_make = ((int)(gap/max_gap))-1;
+            System.out.println("pair: "+i+" "+next_i+" "+heading1+ " "+ heading2 + " gap "+gap+ " fillers "+fillers_to_make);
             if (fillers_to_make > 0) {
                 double to_next = gap / (fillers_to_make+1);
+                     System.out.println("to next: " +to_next);
                 double next;
                 for (int j = 1; j <= fillers_to_make; j++) {
                     next = heading1 + to_next * j;
+                     System.out.println("adding filler: "+j+ " heading: " +next);
                     filler_node = new Node(moveHeadingDistance(center, next, radi));
                     Main.main.undoRedo.add(new AddCommand(filler_node));
                     ungrouped_nodes.add(filler_node);
