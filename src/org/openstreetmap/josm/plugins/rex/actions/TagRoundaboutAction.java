@@ -48,7 +48,7 @@ public class TagRoundaboutAction extends JosmAction {
 
     public TagRoundaboutAction() {
         super(
-            tr("REX"),
+            tr("Roundabout Expander"),
             "images/dialogs/logo-rex.png",
             tr("Roundabout Expander"),
             Shortcut.registerShortcut(
@@ -123,8 +123,19 @@ public class TagRoundaboutAction extends JosmAction {
             //And the way is closed (looks like roundabout)
             if (way.isClosed()) { 
                 tagAsRoundabout(way);
+                selectFlareCandidates();
             }
         }
+
+        //We have some nodes selected
+        //TODO check that they are all member of one and the same roundabout, then
+        //reduce 1 to 0 in the if
+        if (1 < selectedNodes.size()
+             && selection.size() == selectedNodes.size()
+        ) {
+            makeFlares();
+        }
+
 
         Main.map.mapView.repaint();
     }
@@ -561,7 +572,8 @@ public class TagRoundaboutAction extends JosmAction {
      *
      * @param String Message
      */
-    public void pri(String str) {
+    public void pri(String str)
+    {
         Notification t = new Notification(str);
         t.setIcon(JOptionPane.WARNING_MESSAGE);
         t.setDuration(Notification.TIME_SHORT);
@@ -569,16 +581,146 @@ public class TagRoundaboutAction extends JosmAction {
         System.out.println(str);
     }
 
-    public void makeFlares() {
-        /*
-           if next node is <4m away, use that node, else create a new at 4 m away
-           split way at that node
-           determine direction of the connected roundabout way
-           along the roundabout, create a new node half the distance to the next node in both directions
-           those two nodes become the end nodes of the two node way according to direction
-           tag the flare(oneway=yes)
-           split the flare at the outer node
-           */
+    public boolean selectFlareCandidates()
+    {
+        Collection<OsmPrimitive> selection = getCurrentDataSet().getSelected();
+        List<Node> selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
+        List<Way> selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
+        //pri("Selecting flare candidates");
+
+        //We have exactly one way selected
+        if (selection.size() == 1
+            && selectedWays.size() == 1
+        ) {
+            Way way = selectedWays.get(0);
+            //And the way is closed (looks like roundabout)
+            if (way.isClosed()) {
+                if (way.getKeys().get("junction") == "roundabout") {
+                    List<Node> nodes = way.getNodes();
+                    List<Node> nodes2 = new ArrayList<Node>();
+                    List<Way> refWays;
+                    for (Node node : nodes) {
+                        refWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
+                        for (Way hmmway : refWays) {
+                            if (hmmway.isFirstLastNode(node)
+                                && hmmway!=way
+                                && hmmway.getKeys().get("oneway") != "yes"
+                            ) {
+                                nodes2.add(node);
+                            }
+                        }
+                    }
+                    getCurrentDataSet().setSelected(nodes2);
+                } else {
+                    //System.out.println("not tagged");
+                    return false;
+                }
+            } else {
+                //System.out.println("not closed");
+                return false;
+            }
+        } else {
+            //System.out.println("not one way selected");
+            return false;
+        }
+        return false;
+    }
+
+    /**
+     * Make flares.
+     *
+    *       if next node is <4m away, use that node, else create a new at 4 m away
+    *       split way at that node
+    *       determine direction of the connected roundabout way
+    *       along the roundabout, create a new node half the distance to the next node in both directions
+    *       those two nodes become the end nodes of the two node way according to direction
+    *       tag the flare(oneway=yes)
+    *       split the flare at the outer node
+    */
+    public void makeFlares()
+    {
+        Collection<OsmPrimitive> selection = getCurrentDataSet().getSelected();
+        List<Node> selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
+        List<Way> selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
+        //pri("Selecting flare candidates");
+
+        //We have a reasonable amount of nodes selected
+        //TODO also check that they are all of the same roundabout
+        if (0 < selectedNodes.size()
+            && 10 > selectedNodes.size()
+            && selection.size() == selectedNodes.size()
+        ) {
+            //pri("Making "+selection.size()+" flares");
+            for (Node node : selectedNodes) {
+                makeFlare(node);
+            }
+        }
+    }
+
+    public void makeFlare(Node node)
+    {
+        int flare_length = 6; //meter
+
+        //TODO some more sanity checks
+        //two ways, one closed roundabout, one non oneway highway
+        List<Way> referedWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
+        if (referedWays.size() == 2) {
+            Way rw; //roundabout way
+            Way iw; //incoming way
+
+            //We take a chance:
+            rw = referedWays.get(0);
+            if (rw.isClosed() && rw.getKeys().get("junction") == "roundabout") {
+                //We guessed right
+                iw = referedWays.get(1);
+            } else {
+                rw = referedWays.get(1);
+                iw = referedWays.get(0);
+            }
+            //TODO some more sanity checking!
+
+            pri("making flare on node "+node);
+            //getCurrentDataSet().setSelected(rw);
+
+            //Unglue the node from roundabout
+            List<Node> ungrouped_nodes = unglueWays(node);
+
+            if (ungrouped_nodes.size() != 2)
+                pri("Unglue error");
+
+            //Move towards next node in way xxx
+            moveWayEndNodeTowardsNextNode(ungrouped_nodes.get(0), flare_length);
+
+            //Find relevant nodes for flare
+            Node fs = ungrouped_nodes.get(0);
+            Node fn1 = ungrouped_nodes.get(1);
+            Node fn2 = rw.getNeighbours(node).iterator().next();
+
+            //Create flare ways
+            Way fw1 = new Way();
+            Way fw2 = new Way();
+
+            //add the nodes to the way
+            fw1.addNode(fs);
+            fw1.addNode(fn1);
+            fw2.addNode(fs);
+            fw2.addNode(fn2);
+
+            //Copy tagging from iw
+            Map<String,String> tagsToCopy = iw.getKeys();
+            fw1.setKeys(tagsToCopy);
+            fw2.setKeys(tagsToCopy);
+
+            fw1.put("oneway", "yes");
+            fw2.put("oneway", "yes");
+
+            fw1.put("oneway_type", "roundabout_flare");
+            fw2.put("oneway_type", "roundabout_flare");
+
+            //Add them to osm
+            Main.main.undoRedo.add(new AddCommand(fw1));
+            Main.main.undoRedo.add(new AddCommand(fw2));
+        }
     }
 
 } //end TagRoundaboutAction
