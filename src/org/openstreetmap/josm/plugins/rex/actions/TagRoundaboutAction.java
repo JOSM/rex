@@ -204,10 +204,13 @@ public class TagRoundaboutAction extends JosmAction {
             moveWayEndNodeTowardsNextNode(n, radi);
         }
 
+        angularSort(ungrouped_nodes, center, lefthandtraffic);
+
         //Construct some nodes to make it pretty.
         Node filler_node = null; 
         double heading1, heading2;
         int s = ungrouped_nodes.size();
+        //for (Node q : ungrouped_nodes) { System.out.println(center.heading(q.getCoor())+" "+q);}
         for (int i = 0, next_i = 0; i < s; i++) {
             next_i = i+1;
             //Reference back to start
@@ -221,14 +224,14 @@ public class TagRoundaboutAction extends JosmAction {
 
             double gap = heading2 - heading1;
             int fillers_to_make = ((int)(gap/max_gap))-1;
-            System.out.println("pair: "+i+" "+next_i+" "+heading1+ " "+ heading2 + " gap "+gap+ " fillers "+fillers_to_make);
+            //System.out.println("pair: "+i+" "+next_i+" "+heading1+ " "+ heading2 + " gap "+gap+ " fillers "+fillers_to_make);
             if (fillers_to_make > 0) {
                 double to_next = gap / (fillers_to_make+1);
-                     System.out.println("to next: " +to_next);
+                     //System.out.println("to next: " +to_next);
                 double next;
                 for (int j = 1; j <= fillers_to_make; j++) {
                     next = heading1 + to_next * j;
-                     System.out.println("adding filler: "+j+ " heading: " +next);
+                     //System.out.println("adding filler: "+j+ " heading: " +next);
                     filler_node = new Node(moveHeadingDistance(center, next, radi));
                     Main.main.undoRedo.add(new AddCommand(filler_node));
                     ungrouped_nodes.add(filler_node);
