@@ -568,6 +568,19 @@ public class TagRoundaboutAction extends JosmAction {
         t.show();
         System.out.println(str);
     }
+
+    public void makeFlares() {
+        /*
+           if next node is <4m away, use that node, else create a new at 4 m away
+           split way at that node
+           determine direction of the connected roundabout way
+           along the roundabout, create a new node half the distance to the next node in both directions
+           those two nodes become the end nodes of the two node way according to direction
+           tag the flare(oneway=yes)
+           split the flare at the outer node
+           */
+    }
+
 } //end TagRoundaboutAction
 
 //EOF
