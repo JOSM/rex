@@ -54,19 +54,10 @@ public class TagRoundaboutAction extends JosmAction {
             Shortcut.registerShortcut(
                 "menu:rex",
                 tr("Menu: {0}", tr("Roundabout Expander")),
-                KeyEvent.VK_R, Shortcut.ALT_CTRL
+                KeyEvent.VK_R, Shortcut.CTRL_SHIFT
             ),
             false
         );
-        //Make default settings
-        int roundabout_size = Integer.parseInt(Main.pref.get("rex.roundabout_size"));
-        if (roundabout_size < 1) {
-            Main.pref.put("rex.roundabout_size", "12");
-        }
-        int max_gap_degr = Integer.parseInt(Main.pref.get("rex.max_gap_degr"));
-        if (max_gap_degr < 1) {
-            Main.pref.put("rex.max_gap_degr", "30");
-        }
     }
 
 /**
@@ -89,17 +80,17 @@ public class TagRoundaboutAction extends JosmAction {
 
         //If we have exactly one single node selected
         if (selection.size() == 1
-            && selectedNodes.size() == 1
-        ) {
+                && selectedNodes.size() == 1
+           ) {
             Node node = selectedNodes.get(0);
             if (node.getKeys().get("highway") != "mini_roundabout") {
                 //Make it a mini roundabout
                 tagAsRoundabout(node);
             } else {
                 //Get defaults
-                double radi = Integer.parseInt(Main.pref.get("rex.roundabout_size"))/2;
-                boolean lefthandtraffic = (Main.pref.get("mappaint.lefthandtraffic") == "true" ? true : false);
-                double max_gap = Math.toRadians(Integer.parseInt(Main.pref.get("rex.max_gap_degr")));
+                double radi = Main.pref.getInteger("rex.diameter_meter", 12)/2;
+                double max_gap = Math.toRadians(Main.pref.getInteger("rex.max_gap_degrees", 30));
+                boolean lefthandtraffic = Main.pref.getBoolean("mappaint.lefthandtraffic", false);
 
                 //See if user want another direction
                 if (node.getKeys().get("direction") == "clockwise") {
@@ -113,32 +104,85 @@ public class TagRoundaboutAction extends JosmAction {
 
                 makeRoundabout(node, radi, lefthandtraffic, max_gap);
             }
-        }
+           }
 
         //We have exactly one way selected
         if (selection.size() == 1
-            && selectedWays.size() == 1
-        ) {
+                && selectedWays.size() == 1
+           ) {
             Way way = selectedWays.get(0);
             //And the way is closed (looks like roundabout)
             if (way.isClosed()) { 
                 tagAsRoundabout(way);
                 selectFlareCandidates();
             }
-        }
+           }
 
         //We have some nodes selected
         //TODO check that they are all member of one and the same roundabout, then
         //reduce 1 to 0 in the if
         if (1 < selectedNodes.size()
-             && selection.size() == selectedNodes.size()
-        ) {
+                && selection.size() == selectedNodes.size()
+           ) {
             makeFlares();
-        }
+           }
 
+
+        //Lollypop-mover
+        if (2 == selection.size()
+                && 1 == selectedNodes.size()
+                && 1 == selectedWays.size()
+           ) {
+            Way way = selectedWays.get(0);
+            Node node = selectedNodes.get(0);
+            if (way.isFirstLastNode(node)) {
+                List<Way> referedWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
+                if (2 == referedWays.size()) {
+                    Way alongway = null;
+                    Node moveToNode = null;
+                    for (Way alongway_candidate : referedWays) {
+                        if (alongway_candidate != way) {
+                            alongway = alongway_candidate;
+                        }
+                    }
+                    //Select a random neighbour
+                    //for (Node mtnc : alongway.getNeighbours(node)) {
+                    //    moveToNode = mtnc;
+                    //    break;
+                    //}
+
+                    //Select the next node in alongway
+                    int direction = 1; //-1
+                    int new_pos = (alongway.getNodes().indexOf(node) + direction)
+                        % alongway.getNodes().size();
+                    moveToNode = alongway.getNodes().get(new_pos);
+
+                    //Maintain selection TODO also select the way
+                    getCurrentDataSet().setSelected(moveToNode);
+
+                    //Create a new version
+                    List<Node> nn = new ArrayList<>();
+                    for (Node pushNode : way.getNodes()) {
+                        if (node == pushNode) {
+                            pushNode = moveToNode;
+                        }
+                        nn.add(pushNode);
+                    }
+                    Way newWay = new Way(way);
+                    newWay.setNodes(nn);
+
+                    //Plopp it in
+                    Main.main.undoRedo.add(new ChangeCommand(way, newWay));
+                }  else {
+                    //The node refers to more than one way other than the
+                    //one we selected, so we don't know witch one we want.
+                }
+            }
+        }
 
         Main.map.mapView.repaint();
     }
+
 
     /**
     * Tag node as roundabout
@@ -221,7 +265,7 @@ public class TagRoundaboutAction extends JosmAction {
         Node filler_node = null; 
         double heading1, heading2;
         int s = ungrouped_nodes.size();
-        //for (Node q : ungrouped_nodes) { System.out.println(center.heading(q.getCoor())+" "+q);}
+        for (Node q : ungrouped_nodes) { System.out.println(center.heading(q.getCoor())+" "+q);}
         for (int i = 0, next_i = 0; i < s; i++) {
             next_i = i+1;
             //Reference back to start
@@ -231,18 +275,18 @@ public class TagRoundaboutAction extends JosmAction {
             heading2 = center.heading(ungrouped_nodes.get(next_i).getCoor());
 
             //Add full circle (2PI) to heading 2 to "come around" the circle.
-            if (heading1>heading2) {heading2 += Math.PI*2;}
+            if (heading1>heading2 || i == next_i) {heading2 += Math.PI*2;}
 
             double gap = heading2 - heading1;
             int fillers_to_make = ((int)(gap/max_gap))-1;
-            //System.out.println("pair: "+i+" "+next_i+" "+heading1+ " "+ heading2 + " gap "+gap+ " fillers "+fillers_to_make);
+            System.out.println("pair: "+i+" "+next_i+" "+heading1+ " "+ heading2 + " gap "+gap+ " fillers "+fillers_to_make);
             if (fillers_to_make > 0) {
                 double to_next = gap / (fillers_to_make+1);
-                     //System.out.println("to next: " +to_next);
+                     System.out.println("to next: " +to_next);
                 double next;
                 for (int j = 1; j <= fillers_to_make; j++) {
                     next = heading1 + to_next * j;
-                     //System.out.println("adding filler: "+j+ " heading: " +next);
+                     System.out.println("adding filler: "+j+ " heading: " +next);
                     filler_node = new Node(moveHeadingDistance(center, next, radi));
                     Main.main.undoRedo.add(new AddCommand(filler_node));
                     ungrouped_nodes.add(filler_node);
@@ -290,7 +334,7 @@ public class TagRoundaboutAction extends JosmAction {
         for (Way from : referedWays) {
             if (from.isClosed()) {
                 pri("something funky is going to happen. we have a circular way");
-                continue;
+                continue; //to avoid bug
             }
             if (from.isFirstLastNode(node)) {
                 //do nothing if node is end of way
@@ -319,6 +363,7 @@ public class TagRoundaboutAction extends JosmAction {
 
         Way wayWithSelectedNode = null;
         LinkedList<Way> parentWays = new LinkedList<>();
+        //if (selectedNode.getReferrers().size() > 1)
         for (OsmPrimitive osm : selectedNode.getReferrers()) {
             if (osm.isUsable() && osm instanceof Way) {
                 Way w = (Way) osm;
@@ -629,8 +674,7 @@ public class TagRoundaboutAction extends JosmAction {
     /**
      * Make flares.
      *
-    *       if next node is <4m away, use that node, else create a new at 4 m away
-    *       split way at that node
+    *       split way at the next node
     *       determine direction of the connected roundabout way
     *       along the roundabout, create a new node half the distance to the next node in both directions
     *       those two nodes become the end nodes of the two node way according to direction
@@ -659,7 +703,9 @@ public class TagRoundaboutAction extends JosmAction {
 
     public void makeFlare(Node node)
     {
+        System.out.println("starting node");
         int flare_length = 6; //meter
+        int direction = -1; //One arm of the flare will be connected to the next node
 
         //TODO some more sanity checks
         //two ways, one closed roundabout, one non oneway highway
@@ -679,22 +725,22 @@ public class TagRoundaboutAction extends JosmAction {
             }
             //TODO some more sanity checking!
 
-            pri("making flare on node "+node);
-            //getCurrentDataSet().setSelected(rw);
-
             //Unglue the node from roundabout
             List<Node> ungrouped_nodes = unglueWays(node);
 
-            if (ungrouped_nodes.size() != 2)
-                pri("Unglue error");
+            if (ungrouped_nodes.size() != 2) pri("Unglue error");
 
-            //Move towards next node in way xxx
+            //Move towards next node in way
             moveWayEndNodeTowardsNextNode(ungrouped_nodes.get(0), flare_length);
 
             //Find relevant nodes for flare
             Node fs = ungrouped_nodes.get(0);
             Node fn1 = ungrouped_nodes.get(1);
-            Node fn2 = rw.getNeighbours(node).iterator().next();
+
+            //Find the next node in the roundabout
+            int new_pos = (rw.getNodes().indexOf(node) + direction)
+                % rw.getNodes().size();
+            Node fn2 = rw.getNodes().get(new_pos);
 
             //Create flare ways
             Way fw1 = new Way();
@@ -703,8 +749,8 @@ public class TagRoundaboutAction extends JosmAction {
             //add the nodes to the way
             fw1.addNode(fs);
             fw1.addNode(fn1);
-            fw2.addNode(fs);
             fw2.addNode(fn2);
+            fw2.addNode(fs);
 
             //Copy tagging from iw
             Map<String,String> tagsToCopy = iw.getKeys();
@@ -720,6 +766,8 @@ public class TagRoundaboutAction extends JosmAction {
             //Add them to osm
             Main.main.undoRedo.add(new AddCommand(fw1));
             Main.main.undoRedo.add(new AddCommand(fw2));
+        } else {
+            //The node had too many referrers, dunno with one to flare
         }
     }
 
