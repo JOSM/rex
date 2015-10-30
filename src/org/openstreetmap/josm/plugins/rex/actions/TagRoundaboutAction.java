@@ -81,30 +81,40 @@ public class TagRoundaboutAction extends JosmAction {
         //If we have exactly one single node selected
         if (selection.size() == 1
                 && selectedNodes.size() == 1
-           ) {
+        ) {
             Node node = selectedNodes.get(0);
             if (node.getKeys().get("highway") != "mini_roundabout") {
                 //Make it a mini roundabout
                 tagAsRoundabout(node);
             } else {
                 //Get defaults
-                double radi = Main.pref.getInteger("rex.diameter_meter", 12)/2;
+                double radi = Main.pref.getInteger("rex.diameter_meter", 12) /2;
+
                 double max_gap = Math.toRadians(Main.pref.getInteger("rex.max_gap_degrees", 30));
                 boolean lefthandtraffic = Main.pref.getBoolean("mappaint.lefthandtraffic", false);
 
                 //See if user want another direction
-                if (node.getKeys().get("direction") == "clockwise") {
+                if (node.getKeys().containsKey("direction") &&
+                    node.getKeys().get("direction").equals("clockwise")
+                ) {
                     lefthandtraffic = true;
+                    System.out.println("REX: direction overridden by direction=clockwise");
                 }
 
                 //See if user want another size
                 if (node.getKeys().containsKey("diameter")) {
-                    radi = Double.parseDouble(node.getKeys().get("diameter"))/2;
+                    System.out.println("diameter tag");
+                    try {
+                        int d = Integer.parseInt(node.getKeys().get("diameter"));
+                        radi = d/2;
+                        System.out.println("REX: diameter overridden by tag diameter="+d);
+                    } catch (NumberFormatException ex) {
+                        System.out.println("REX: failed getting diameter from node tag diameter");
+                    }
                 }
-
                 makeRoundabout(node, radi, lefthandtraffic, max_gap);
             }
-           }
+        }
 
         //We have exactly one way selected
         if (selection.size() == 1
@@ -183,7 +193,6 @@ public class TagRoundaboutAction extends JosmAction {
         Main.map.mapView.repaint();
     }
 
-
     /**
     * Tag node as roundabout
     *
@@ -194,7 +203,8 @@ public class TagRoundaboutAction extends JosmAction {
     public void tagAsRoundabout(Node node) {
         Main.main.undoRedo.add(new ChangePropertyCommand(node, "junction", "roundabout"));
         Main.main.undoRedo.add(new ChangePropertyCommand(node, "highway", "mini_roundabout"));
-        Main.main.undoRedo.add(new ChangePropertyCommand(node, "diameter", "12"));
+        int d = Main.pref.getInteger("rex.diameter_meter", 12);
+        Main.main.undoRedo.add(new ChangePropertyCommand(node, "diameter", Integer.toString(d)));
     }
 
     /**
@@ -259,7 +269,8 @@ public class TagRoundaboutAction extends JosmAction {
             moveWayEndNodeTowardsNextNode(n, radi);
         }
 
-        angularSort(ungrouped_nodes, center, lefthandtraffic);
+        //Always as righthand for the maths below to be correct
+        angularSort(ungrouped_nodes, center, false);
 
         //Construct some nodes to make it pretty.
         Node filler_node = null; 
@@ -274,7 +285,7 @@ public class TagRoundaboutAction extends JosmAction {
             heading1 = center.heading(ungrouped_nodes.get(i).getCoor());
             heading2 = center.heading(ungrouped_nodes.get(next_i).getCoor());
 
-            //Add full circle (2PI) to heading 2 to "come around" the circle.
+            //Add full circle (2PI) to heading2 to "come around" the circle.
             if (heading1>heading2 || i == next_i) {heading2 += Math.PI*2;}
 
             double gap = heading2 - heading1;
@@ -769,8 +780,7 @@ public class TagRoundaboutAction extends JosmAction {
         } else {
             //The node had too many referrers, dunno with one to flare
         }
-    }
-
-} //end TagRoundaboutAction
+    } //end method makeFlare
+} //end class TagRoundaboutAction
 
 //EOF
