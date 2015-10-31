@@ -113,20 +113,21 @@ public class TagRoundaboutAction extends JosmAction {
                     }
                 }
                 makeRoundabout(node, radi, lefthandtraffic, max_gap);
+                selectFlareCandidates();
             }
         }
 
         //We have exactly one way selected
         if (selection.size() == 1
                 && selectedWays.size() == 1
-           ) {
+        ) {
             Way way = selectedWays.get(0);
             //And the way is closed (looks like roundabout)
             if (way.isClosed()) { 
                 tagAsRoundabout(way);
                 selectFlareCandidates();
             }
-           }
+        }
 
         //We have some nodes selected
         //TODO check that they are all member of one and the same roundabout, then
@@ -566,27 +567,39 @@ public class TagRoundaboutAction extends JosmAction {
      * @param Node   node     Node to be moved
      * @param double distance Distance to move node in meter
      */
-    public void moveWayEndNodeTowardsNextNode( Node node, double distance) {
+    public boolean moveWayEndNodeTowardsNextNode(Node node, double distance) {
         //some verification:
         List<Way> referedWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
+        for (Way w : referedWays) System.out.println(w);
 
         //node must be member of exactly one way
         if (referedWays.size() != 1) {
             //pri("node is not member of exactly one way");
-            return;
+            return false;
+        } else {
+            return moveWayEndNodeTowardsNextNode(node, distance, referedWays.get(0));
         }
+    }
 
+    /**
+     * Move a node it distance meter in the heading of
+     * the next node in the way it is the last node in.
+     *
+     * @param Node   node     Node to be moved
+     * @param double distance Distance to move node in meter
+     * @param Way    way      Way
+     */
+    public boolean moveWayEndNodeTowardsNextNode(Node node, double distance, Way way) {
         //Node must be first or last node in way
-        Way way = referedWays.get(0);
         if (!way.isFirstLastNode(node)) {
             //pri("not first or last node in way");
-            return;
+            return false;
         }
 
         //Way must be at least two nodes long
         if(way.getNodesCount() < 2){
             //pri("fewer than two nodes");
-            return;
+            return false;
         }
 
         //Find heading to next node
@@ -596,6 +609,8 @@ public class TagRoundaboutAction extends JosmAction {
         //Move the node towards the next node
         LatLon newpos = moveHeadingDistance(node.getCoor(), heading, distance);
         node.setCoor(newpos);
+
+        return true;
     }
 
     /**
@@ -692,94 +707,157 @@ public class TagRoundaboutAction extends JosmAction {
     *       tag the flare(oneway=yes)
     *       split the flare at the outer node
     */
-    public void makeFlares()
+    public boolean makeFlares()
     {
         Collection<OsmPrimitive> selection = getCurrentDataSet().getSelected();
         List<Node> selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
         List<Way> selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
-        //pri("Selecting flare candidates");
 
         //We have a reasonable amount of nodes selected
-        //TODO also check that they are all of the same roundabout
+        //TODO also check that they are all of the same way
         if (0 < selectedNodes.size()
             && 10 > selectedNodes.size()
             && selection.size() == selectedNodes.size()
         ) {
-            //pri("Making "+selection.size()+" flares");
-            for (Node node : selectedNodes) {
-                makeFlare(node);
+            Set<Way> commonWays = findCommonWays(selectedNodes);
+            if (commonWays.size() == 1) {
+                Way tWay = commonWays.iterator().next();
+                for (Node cNode : selectedNodes) {
+                    List<Way> iWayCandidates = OsmPrimitive.getFilteredList(cNode.getReferrers(), Way.class);
+                    if (iWayCandidates.size() == 2) {
+                        for (Way iWay : iWayCandidates) {
+                            if (iWay != tWay) {
+                                makeFlare(iWay, tWay, cNode);
+                            }
+                        }
+                    } else {
+                        //Could not find one iWay from cNode
+                    }
+                }
+                getCurrentDataSet().setSelected(tWay);
+                return true;
+            } else {
+                // There was no one common way
+                // TODO perhaps look in the set for a closed or roundabout?
+                //if (w.isClosed() && w.getKeys().get("junction").equals("roundabout")) {
             }
+            /*
+            for (Way w : OsmPrimitive.getFilteredList(selectedNodes.get(0).getReferrers(), Node.class)) {
+            */
+        } else {
+            //There were no suitable selection
         }
+        return false;
     }
 
-    public void makeFlare(Node node)
+    /**
+     * Find a set of ways that all nodes are a member of
+     */
+    private Set<Way> findCommonWays(List<Node> nodes) {
+        Set<Way> ret = new HashSet<Way>();
+
+        //We examine the referring ways of one of nodes
+        Node n = nodes.get(0);
+        List<Way> nodeReferringWays = OsmPrimitive.getFilteredList(n.getReferrers(), Way.class);
+        for (Way referredWay : nodeReferringWays) {
+            //if all nodes are a member
+            if (wayContainsAllNodes(referredWay, nodes)) {
+                ret.add(referredWay);
+            }
+        }
+
+        return ret;
+    }
+
+    private boolean wayContainsAllNodes(Way way, List<Node> nodes) {
+        for (Node node : nodes) {
+            if (! way.containsNode(node)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Given a way and a node, find the other way referring to node
+     */
+    private Way findOtherWayThan(Node node, Way way) {
+        List<Way> otherWayCandidates = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
+        if (otherWayCandidates.size() == 2) {
+            for (Way otherWay : otherWayCandidates) {
+                if (otherWay != way) {
+                    return otherWay;
+                }
+            }
+        } else {
+            //node did not refer to two ways
+        }
+        return null;
+    }
+
+    /**
+     * @param Way  iWay  incoming way
+     * @param Way  tWay  across way
+     * @param Node cNode common node
+     *
+     * @return boolean Success
+     */
+    public boolean makeFlare(Way iWay, Way tWay, Node cNode)
     {
-        System.out.println("starting node");
+        pri("making flare on "+cNode);
         int flare_length = 6; //meter
         int direction = -1; //One arm of the flare will be connected to the next node
 
-        //TODO some more sanity checks
-        //two ways, one closed roundabout, one non oneway highway
-        List<Way> referedWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
-        if (referedWays.size() == 2) {
-            Way rw; //roundabout way
-            Way iw; //incoming way
-
-            //We take a chance:
-            rw = referedWays.get(0);
-            if (rw.isClosed() && rw.getKeys().get("junction") == "roundabout") {
-                //We guessed right
-                iw = referedWays.get(1);
-            } else {
-                rw = referedWays.get(1);
-                iw = referedWays.get(0);
-            }
-            //TODO some more sanity checking!
-
-            //Unglue the node from roundabout
-            List<Node> ungrouped_nodes = unglueWays(node);
-
-            if (ungrouped_nodes.size() != 2) pri("Unglue error");
-
-            //Move towards next node in way
-            moveWayEndNodeTowardsNextNode(ungrouped_nodes.get(0), flare_length);
-
-            //Find relevant nodes for flare
-            Node fs = ungrouped_nodes.get(0);
-            Node fn1 = ungrouped_nodes.get(1);
-
-            //Find the next node in the roundabout
-            int new_pos = (rw.getNodes().indexOf(node) + direction)
-                % rw.getNodes().size();
-            Node fn2 = rw.getNodes().get(new_pos);
-
-            //Create flare ways
-            Way fw1 = new Way();
-            Way fw2 = new Way();
-
-            //add the nodes to the way
-            fw1.addNode(fs);
-            fw1.addNode(fn1);
-            fw2.addNode(fn2);
-            fw2.addNode(fs);
-
-            //Copy tagging from iw
-            Map<String,String> tagsToCopy = iw.getKeys();
-            fw1.setKeys(tagsToCopy);
-            fw2.setKeys(tagsToCopy);
-
-            fw1.put("oneway", "yes");
-            fw2.put("oneway", "yes");
-
-            fw1.put("oneway_type", "roundabout_flare");
-            fw2.put("oneway_type", "roundabout_flare");
-
-            //Add them to osm
-            Main.main.undoRedo.add(new AddCommand(fw1));
-            Main.main.undoRedo.add(new AddCommand(fw2));
+        if (iWay.isFirstLastNode(cNode) && tWay.containsNode(cNode)
+                //iWay must be >1 tWay > 2
+                ) {
+            //Carry on
         } else {
-            //The node had too many referrers, dunno with one to flare
+            //cNode is not common for iWay and tWay
+            return false;
         }
+
+        //Unglue cNode from tWay
+        List<Node> a = new LinkedList<>();
+        Main.main.undoRedo.add(new ChangeCommand(iWay, modifyWay(cNode, iWay, a)));
+        Node iWayNewNode = a.get(0);
+
+        //Move iWayNewNode towards ajacent node in iWay
+        if (!moveWayEndNodeTowardsNextNode(iWayNewNode, flare_length, iWay)) return false;
+
+        //Find relevant nodes for flare
+        Node fs = iWayNewNode;
+        Node fn1 = cNode;
+
+        //Find the next node in tWay
+        int new_pos = (tWay.getNodes().indexOf(cNode) + direction) % tWay.getNodes().size();
+        Node fn2 = tWay.getNodes().get(new_pos);
+
+        //Create flare ways
+        Way flareWay1 = new Way();
+        Way flareWay2 = new Way();
+
+        //add the nodes to the way
+        flareWay1.addNode(fs);
+        flareWay1.addNode(fn1);
+
+        flareWay2.addNode(fn2);
+        flareWay2.addNode(fs);
+
+        //Copy tagging from iWay
+        Map<String,String> tagsToCopy = iWay.getKeys();
+        flareWay1.setKeys(tagsToCopy);
+        flareWay2.setKeys(tagsToCopy);
+
+        flareWay1.put("oneway", "yes");
+        flareWay2.put("oneway", "yes");
+
+        flareWay1.put("oneway_type", "roundabout_flare");
+        flareWay2.put("oneway_type", "roundabout_flare");
+
+        //Add them to osm
+        Main.main.undoRedo.add(new AddCommand(flareWay1));
+        Main.main.undoRedo.add(new AddCommand(flareWay2));
+
+        return true;
     } //end method makeFlare
 } //end class TagRoundaboutAction
 
