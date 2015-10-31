@@ -802,7 +802,7 @@ public class TagRoundaboutAction extends JosmAction {
      */
     public boolean makeFlare(Way iWay, Way tWay, Node cNode)
     {
-        pri("making flare on "+cNode);
+        //pri("making flare on "+cNode);
         int flare_length = 6; //meter
         int direction = -1; //One arm of the flare will be connected to the next node
 
@@ -828,7 +828,18 @@ public class TagRoundaboutAction extends JosmAction {
         Node fn1 = cNode;
 
         //Find the next node in tWay
-        int new_pos = (tWay.getNodes().indexOf(cNode) + direction) % tWay.getNodes().size();
+        int new_pos = tWay.getNodes().indexOf(cNode) + direction;
+        if (tWay.isClosed()) {
+            //Closed
+            //  0 1 2 3 4  0=4
+            if (new_pos < 0) new_pos += (tWay.getRealNodesCount()-1);
+            if (new_pos >= tWay.getNodesCount()) new_pos = 0;
+        } else {
+            //Open
+            // 0 1 2 3
+            if (new_pos < 0) new_pos += tWay.getRealNodesCount();
+            if (new_pos >= tWay.getNodesCount()) new_pos = 0;
+        }
         Node fn2 = tWay.getNodes().get(new_pos);
 
         //Create flare ways
