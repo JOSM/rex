@@ -475,36 +475,6 @@ public class TagRoundaboutAction extends JosmAction {
             return (ah < bh) ? 1 : -1;
         }
 
-        public int compare_quick(Node a, Node b) {
-            double ax = a.getCoor().lat();
-            double ay = a.getCoor().lon();
-
-            double bx = b.getCoor().lat();
-            double by = b.getCoor().lon();
-
-            double cx = center.lat();
-            double cy = center.lon();
-
-            //Get some simple cases out of the way
-            if (ax >= 0 && bx < 0) {
-                return 1;
-            } else if ( ax == 0 && bx == 0) {
-                return (ay > by) ? 1 : 0;
-            }
-
-            double det = (ax - cx) * (by - cy) - (bx - cx) * (ay - cy);
-            if (det < 0) {
-                return 1;
-            } else if (det > 0) {
-                return 0;
-            }
-
-            //Both are on the same angle, so we sort by distance
-            double ad = (ax - cx) * (ax - cx) + (ay - cy) * (ay - cy);
-            double bd = (bx - cx) * (bx - cx) + (by - cy) * (by - cy);
-            return (ad > bd) ? 1 : 0;
-
-        }
     } //END AngComp
 
     /**
@@ -682,6 +652,7 @@ public class TagRoundaboutAction extends JosmAction {
                         }
                     }
                     getCurrentDataSet().setSelected(nodes2);
+                    return true;
                 } else {
                     //System.out.println("not tagged");
                     return false;
@@ -694,7 +665,6 @@ public class TagRoundaboutAction extends JosmAction {
             //System.out.println("not one way selected");
             return false;
         }
-        return false;
     }
 
     /**
