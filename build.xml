@@ -18,26 +18,28 @@
     <property name="plugin.main.version" value="7001"/>
 
     <!-- Configure these properties (replace "..." accordingly).
-
-
-
          See http://josm.openstreetmap.de/wiki/DevelopersGuide/DevelopingPlugins
     -->
-    <property name="plugin.description" value="Expand a simple intersection to a roundabout in gradual steps"/>
+    <property name="plugin.description" value="Expand a simple intersection to a roundabout in gradual steps. Select an intersection node or a roundabout and press Crtl-Shift-R"/>
     <property name="plugin.author" value="Gorm Egeberg Johnsen"/>
-    <property name="plugin.version" value="0.0.1"/>
+    <property name="plugin.version" value="v0.0.1"/>
     <property name="plugin.class" value="org.openstreetmap.josm.plugins.rex.RoundaboutExpanderPlugin"/>
     <!--<property name="plugin.early" value="..."/>-->
-    <!-- <property name="plugin.link" value="..."/>-->
+    <property name="plugin.link" value="https://wiki.openstreetmap.org/wiki/JOSM/Plugins/RoundaboutExpander"/>
     <property name="plugin.icon" value="images/dialogs/logo-rex.png"/>
     <!--<property name="plugin.requires" value="..."/>-->
     <!--<property name="plugin.stage" value="..."/>-->
     <property name="plugin.canloadatruntime" value="true"/>
 
 	<property name="josm" location="../../core/dist/josm-custom.jar"/>
-	<property name="plugin.dist.dir" value="../../dist"/>
+    <property name="plugin.dist.dir" value="../../dist"/>
+
+<!--
+                <attribute name="Plugin-Date" value="${version.entry.commit.date}"/>
+-->
 	
     <!-- ** include targets that all plugins have in common ** -->
-    <import file="../build-common.xml"/>
     <buildnumber/>
+    <buildnumber/>
+    <import file="../build-common.xml"/>
 </project>
