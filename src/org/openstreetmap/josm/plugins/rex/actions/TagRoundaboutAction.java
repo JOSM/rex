@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -19,14 +20,16 @@ import javax.swing.JOptionPane;
 
 import org.openstreetmap.josm.Main;
 import org.openstreetmap.josm.actions.JosmAction;
-import org.openstreetmap.josm.actions.SplitWayAction;
 import org.openstreetmap.josm.command.AddCommand;
 import org.openstreetmap.josm.command.ChangeCommand;
 import org.openstreetmap.josm.command.ChangePropertyCommand;
+import org.openstreetmap.josm.command.SplitWayCommand;
 import org.openstreetmap.josm.data.coor.LatLon;
+import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
+import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.tools.Shortcut;
 
@@ -144,7 +147,7 @@ public class TagRoundaboutAction extends JosmAction {
             makeFlares();
         }
 
-        Main.map.mapView.repaint();
+        MainApplication.getMap().mapView.repaint();
     }
 
     /**
@@ -167,22 +170,27 @@ public class TagRoundaboutAction extends JosmAction {
      * This method is overloaded with (Node node)
      */
     public void tagAsRoundabout(Way circle) {
+        DataSet ds = circle.getDataSet();
+        if (ds == null) {
+            ds = Main.main.getEditDataSet();
+        }
+        Map<String, String> tags = new HashMap<>();
         //Main tag to make a way a roundabout
-        Main.main.undoRedo.add(new ChangePropertyCommand(circle, "junction", "roundabout"));
-
+        tags.put("junction", "roundabout");
         //oneway is implicit from junction=roundabout, so not needed
         //TODO If oneway=-1 then reverse direction of circle before
-        Main.main.undoRedo.add(new ChangePropertyCommand(circle, "oneway", ""));
+        tags.put("oneway", "");
 
         //If mistagged as a mini_roundabout, remove it
         if (circle.getKeys().get("highway") == "mini_roundabout") {
-            Main.main.undoRedo.add(new ChangePropertyCommand(circle, "highway", ""));
+            tags.put("highway", "");
         }
 
         //If not already tagged as highway, tag as road
         if (!circle.getKeys().containsKey("highway")) {
-            Main.main.undoRedo.add(new ChangePropertyCommand(circle, "highway", "road"));
+            tags.put("highway", "road");
         }
+        Main.main.undoRedo.add(new ChangePropertyCommand(ds, Collections.singleton(circle), tags));
     }
 
     /**
@@ -201,7 +209,10 @@ public class TagRoundaboutAction extends JosmAction {
         //TODO Prioritize through ways over single ways.
         List<Way> refWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
         Collections.sort(refWays, new HighComp(node));
-        Map<String, String> tagsToCopy = refWays.get(0).getKeys();
+        Map<String, String> tagsToCopy = new HashMap<>();
+        if (!refWays.isEmpty()) {
+            tagsToCopy.putAll(refWays.get(0).getKeys());
+        }
 
         //Remove irrelevant tagging from the node
         node.remove("highway");
@@ -232,6 +243,7 @@ public class TagRoundaboutAction extends JosmAction {
         for (Node q : ungrouped_nodes) {
             System.out.println(center.heading(q.getCoor())+" "+q);
         }
+        DataSet ds = Main.main.getEditDataSet();
         for (int i = 0, next_i = 0; i < s; i++) {
             next_i = i+1;
             //Reference back to start
@@ -256,7 +268,7 @@ public class TagRoundaboutAction extends JosmAction {
                     next = heading1 + to_next * j;
                     System.out.println("adding filler: "+j+ " heading: " +next);
                     filler_node = new Node(moveHeadingDistance(center, next, radi));
-                    Main.main.undoRedo.add(new AddCommand(filler_node));
+                    Main.main.undoRedo.add(new AddCommand(ds, filler_node));
                     ungrouped_nodes.add(filler_node);
                 }
             }
@@ -282,7 +294,7 @@ public class TagRoundaboutAction extends JosmAction {
         tagAsRoundabout(newRoundaboutWay);
 
         //Add it to osm
-        Main.main.undoRedo.add(new AddCommand(newRoundaboutWay));
+        Main.main.undoRedo.add(new AddCommand(ds, newRoundaboutWay));
 
         //Select it
         getLayerManager().getEditDataSet().setSelected(newRoundaboutWay);
@@ -306,13 +318,11 @@ public class TagRoundaboutAction extends JosmAction {
                 //do nothing if node is end of way
             } else {
                 //split way if node is in the middle
-                SplitWayAction.SplitWayResult result = SplitWayAction.split(
-                        getLayerManager().getEditLayer(),
+                Main.main.undoRedo.add(SplitWayCommand.split(
                         from,
                         Collections.singletonList(node),
                         Collections.<OsmPrimitive>emptyList()
-                        );
-                Main.main.undoRedo.add(result.getCommand());
+                        ));
             }
         }
     }
@@ -342,7 +352,7 @@ public class TagRoundaboutAction extends JosmAction {
             }
         }
         //Why?
-        if (wayWithSelectedNode == null) {
+        if (wayWithSelectedNode == null && !parentWays.isEmpty()) {
             parentWays.removeFirst();
         }
         //Then actually unglue each parent way
@@ -370,7 +380,7 @@ public class TagRoundaboutAction extends JosmAction {
         // clone the node for the way
         Node newNode = new Node(originalNode, true /* clear OSM ID */);
         newNodes.add(newNode);
-        Main.main.undoRedo.add(new AddCommand(newNode));
+        Main.main.undoRedo.add(new AddCommand(Main.main.getEditDataSet(), newNode));
 
         List<Node> nn = new ArrayList<>();
         for (Node pushNode : originalWay.getNodes()) {
@@ -755,8 +765,9 @@ public class TagRoundaboutAction extends JosmAction {
         flareWay2.put("oneway_type", "roundabout_flare");
 
         //Add them to osm
-        Main.main.undoRedo.add(new AddCommand(flareWay1));
-        Main.main.undoRedo.add(new AddCommand(flareWay2));
+        DataSet ds = Main.main.getEditDataSet();
+        Main.main.undoRedo.add(new AddCommand(ds, flareWay1));
+        Main.main.undoRedo.add(new AddCommand(ds, flareWay2));
 
         return true;
     } //end method makeFlare

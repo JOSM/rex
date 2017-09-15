@@ -3,7 +3,7 @@ package org.openstreetmap.josm.plugins.rex;
 
 import javax.swing.JMenuItem;
 
-import org.openstreetmap.josm.Main;
+import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MainMenu;
 import org.openstreetmap.josm.gui.MapFrame;
 import org.openstreetmap.josm.plugins.Plugin;
@@ -20,7 +20,7 @@ public class RoundaboutExpanderPlugin extends Plugin {
 
     public RoundaboutExpanderPlugin(PluginInformation info) {
         super(info);
-        roundaboutTag = MainMenu.add(Main.main.menu.moreToolsMenu, new TagRoundaboutAction());
+        roundaboutTag = MainMenu.add(MainApplication.getMenu().moreToolsMenu, new TagRoundaboutAction());
     }
 
     /**
