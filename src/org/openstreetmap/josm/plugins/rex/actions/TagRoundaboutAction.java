@@ -99,8 +99,8 @@ public class TagRoundaboutAction extends JosmAction {
                 tagAsRoundabout(node);
             } else {
                 //Get defaults
-                double radi = Main.pref.getInteger("rex.diameter_meter", 12) /2;
-                double max_gap = Math.toRadians(Main.pref.getInteger("rex.max_gap_degrees", 30));
+                double radi = Main.pref.getInt("rex.diameter_meter", 12) /2;
+                double max_gap = Math.toRadians(Main.pref.getInt("rex.max_gap_degrees", 30));
                 boolean lefthandtraffic = Main.pref.getBoolean("mappaint.lefthandtraffic", false);
 
                 //See if user want another direction
@@ -160,7 +160,7 @@ public class TagRoundaboutAction extends JosmAction {
     public void tagAsRoundabout(Node node) {
         Main.main.undoRedo.add(new ChangePropertyCommand(node, "junction", "roundabout"));
         Main.main.undoRedo.add(new ChangePropertyCommand(node, "highway", "mini_roundabout"));
-        int d = Main.pref.getInteger("rex.diameter_meter", 12);
+        int d = Main.pref.getInt("rex.diameter_meter", 12);
         Main.main.undoRedo.add(new ChangePropertyCommand(node, "diameter", Integer.toString(d)));
     }
 
