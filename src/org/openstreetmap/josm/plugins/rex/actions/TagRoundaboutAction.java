@@ -463,9 +463,13 @@ public class TagRoundaboutAction extends JosmAction {
         public int compare(Way a, Way b) {
             List<String> rankList = new ArrayList<>();
             rankList.add("motorway");
+            rankList.add("motorway_link");
             rankList.add("trunk");
+            rankList.add("trunk_link");
             rankList.add("primary");
+            rankList.add("primary_link");
             rankList.add("secondary");
+            rankList.add("secondary_link");
             rankList.add("tertiary");
             rankList.add("unclassified");
             rankList.add("residential");
@@ -475,7 +479,10 @@ public class TagRoundaboutAction extends JosmAction {
             rankList.add("footway");
             rankList.add("path");
             rankList.add("road");
-            //TODO add _link roads too.
+            rankList.add("construction");
+
+            //reverse so that 'not found' (-1) comes last
+            Collections.reverse(rankList);
 
             //TODO don't crash if missing highway tag
             String ahigh = a.getKeys().get("highway");
@@ -484,7 +491,7 @@ public class TagRoundaboutAction extends JosmAction {
             if (rankList.indexOf(ahigh) == rankList.indexOf(bhigh)) {
                 return 0;
             }
-            if (rankList.indexOf(ahigh) > rankList.indexOf(bhigh)) {
+            if (rankList.indexOf(ahigh) < rankList.indexOf(bhigh)) {
                 return 1;
             } else {
                 return -1;
