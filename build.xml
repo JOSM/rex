@@ -10,7 +10,7 @@
     -->
     <property name="plugin.description" value="Expand a simple intersection to a roundabout in gradual steps. Select an intersection node or a roundabout and press Crtl-Shift-R"/>
     <property name="plugin.author" value="Gorm Egeberg Johnsen"/>
-    <property name="plugin.version" value="v1.0.2"/>
+    <property name="plugin.version" value="v1.0.3"/>
     <property name="plugin.class" value="org.openstreetmap.josm.plugins.rex.RoundaboutExpanderPlugin"/>
     <!--<property name="plugin.early" value="..."/>-->
     <property name="plugin.link" value="https://wiki.openstreetmap.org/wiki/JOSM/Plugins/RoundaboutExpander"/>
