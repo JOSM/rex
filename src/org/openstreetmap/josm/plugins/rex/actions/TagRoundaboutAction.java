@@ -62,11 +62,9 @@ public class TagRoundaboutAction extends JosmAction {
                 tr("Roundabout Expander"),
                 "dialogs/logo-rex.png",
                 tr("Roundabout Expander"),
-                Shortcut.registerShortcut(
-                        "menu:rex",
+                Shortcut.registerShortcut("menu:rex",
                         tr("Menu: {0}", tr("Roundabout Expander")),
-                        KeyEvent.VK_R, Shortcut.CTRL_SHIFT
-                        ),
+                        KeyEvent.VK_R, Shortcut.CTRL_SHIFT),
                 false
                 );
     }
