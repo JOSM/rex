@@ -6,7 +6,7 @@
     <property name="plugin.main.version" value="12840"/>
 
     <!-- Configure these properties (replace "..." accordingly).
-         See http://josm.openstreetmap.de/wiki/DevelopersGuide/DevelopingPlugins
+         See https://josm.openstreetmap.de/wiki/DevelopersGuide/DevelopingPlugins
     -->
     <property name="plugin.description" value="Expand a simple intersection to a roundabout in gradual steps. Select an intersection node or a roundabout and press Crtl-Shift-R"/>
     <property name="plugin.author" value="Gorm Egeberg Johnsen"/>
