@@ -151,11 +151,11 @@ public class TagRoundaboutAction extends JosmAction {
     /**
      * Tag node as roundabout
      *
-     * @TODO direction as well?
-     *
      * This method is overloaded with (Way circle)
+     * @param node node
      */
     public void tagAsRoundabout(Node node) {
+        // TODO direction as well?
         Main.main.undoRedo.add(new ChangePropertyCommand(node, "junction", "roundabout"));
         Main.main.undoRedo.add(new ChangePropertyCommand(node, "highway", "mini_roundabout"));
         int d = Main.pref.getInt("rex.diameter_meter", 12);
@@ -166,6 +166,7 @@ public class TagRoundaboutAction extends JosmAction {
      * Tag closed way as roundabout
      *
      * This method is overloaded with (Node node)
+     * @param circle way
      */
     public void tagAsRoundabout(Way circle) {
         DataSet ds = circle.getDataSet();
@@ -194,10 +195,10 @@ public class TagRoundaboutAction extends JosmAction {
     /**
      * Create a roundabout way
      *
-     * @param Node    node            Node to expand to Roundabout
-     * @param double  radi            Radius of roundabout in meter
-     * @param boolean lefthandtraffic Direction of roundabout
-     * @param double  max_gap         Max gap in radians between nodes to make it pretty
+     * @param node            Node to expand to Roundabout
+     * @param radi            Radius of roundabout in meter
+     * @param lefthandtraffic Direction of roundabout
+     * @param max_gap         Max gap in radians between nodes to make it pretty
      */
     public void makeRoundabout(Node node, double radi, boolean lefthandtraffic, double max_gap) {
         //Store center for later use
@@ -396,9 +397,9 @@ public class TagRoundaboutAction extends JosmAction {
     /**
      * Sort nodes angular in relation to center
      *
-     * @param List<Node> nodes
-     * @param Node       center
-     * @param boolean    clockwise
+     * @param nodes nodes
+     * @param center center
+     * @param clockwise clockwise?
      */
     private void angularSort(List<Node> nodes, LatLon center, boolean clockwise) {
         Collections.sort(nodes, new AngComp(center));
@@ -501,8 +502,8 @@ public class TagRoundaboutAction extends JosmAction {
      * Move a node it distance meter in the heading of
      * the next node in the way it is the last node in.
      *
-     * @param Node   node     Node to be moved
-     * @param double distance Distance to move node in meter
+     * @param node     Node to be moved
+     * @param distance Distance to move node in meter
      */
     public boolean moveWayEndNodeTowardsNextNode(Node node, double distance) {
         //some verification:
@@ -522,9 +523,9 @@ public class TagRoundaboutAction extends JosmAction {
      * Move a node it distance meter in the heading of
      * the next node in the way it is the last node in.
      *
-     * @param Node   node     Node to be moved
-     * @param double distance Distance to move node in meter
-     * @param Way    way      Way
+     * @param node     Node to be moved
+     * @param distance Distance to move node in meter
+     * @param way      Way
      */
     public boolean moveWayEndNodeTowardsNextNode(Node node, double distance, Way way) {
         //Node must be first or last node in way
@@ -553,9 +554,9 @@ public class TagRoundaboutAction extends JosmAction {
     /**
      * Return a LatLon moved distance meter in heading from start
      *
-     * @param LatLon start point
-     * @param double heading in radians
-     * @param double distance in Meter
+     * @param start point
+     * @param heading in radians
+     * @param distance in Meter
      *
      * @return LatLon New position
      */
@@ -577,7 +578,7 @@ public class TagRoundaboutAction extends JosmAction {
     /**
      * Output a message
      *
-     * @param String Message
+     * @param str Message
      */
     public void pri(String str) {
         Notification t = new Notification(str);
@@ -700,9 +701,9 @@ public class TagRoundaboutAction extends JosmAction {
     }
 
     /**
-     * @param Way  iWay  incoming way
-     * @param Way  tWay  across way
-     * @param Node cNode common node
+     * @param iWay  incoming way
+     * @param tWay  across way
+     * @param cNode common node
      *
      * @return boolean Success
      */
