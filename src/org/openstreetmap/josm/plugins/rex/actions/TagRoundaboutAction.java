@@ -31,6 +31,7 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.Notification;
+import org.openstreetmap.josm.tools.Logging;
 import org.openstreetmap.josm.tools.Shortcut;
 
 /**
@@ -106,18 +107,18 @@ public class TagRoundaboutAction extends JosmAction {
                         node.getKeys().get("direction").equals("clockwise")
                         ) {
                     lefthandtraffic = true;
-                    System.out.println("REX: direction overridden by direction=clockwise");
+                    Logging.debug("REX: direction overridden by direction=clockwise");
                 }
 
                 //See if user want another size
                 if (node.getKeys().containsKey("diameter")) {
-                    System.out.println("diameter tag");
                     try {
                         int d = Integer.parseInt(node.getKeys().get("diameter"));
                         radi = d/2;
-                        System.out.println("REX: diameter overridden by tag diameter="+d);
+                        Logging.debug("REX: diameter overridden by tag diameter={0}", d);
                     } catch (NumberFormatException ex) {
-                        System.out.println("REX: failed getting diameter from node tag diameter");
+                        Logging.warn("REX: failed getting diameter from node tag diameter");
+                        Logging.warn(ex);
                     }
                 }
                 makeRoundabout(node, radi, lefthandtraffic, max_gap);
@@ -239,17 +240,14 @@ public class TagRoundaboutAction extends JosmAction {
         Node filler_node = null;
         double heading1, heading2;
         int s = ungrouped_nodes.size();
-        for (Node q : ungrouped_nodes) {
-            System.out.println(center.heading(q.getCoor())+" "+q);
-        }
         DataSet ds = Main.main.getEditDataSet();
         for (int i = 0, next_i = 0; i < s; i++) {
             next_i = i+1;
             //Reference back to start
             if (next_i == s) next_i = 0;
 
-            heading1 = center.heading(ungrouped_nodes.get(i).getCoor());
-            heading2 = center.heading(ungrouped_nodes.get(next_i).getCoor());
+            heading1 = -center.bearing(ungrouped_nodes.get(i).getCoor());
+            heading2 = -center.bearing(ungrouped_nodes.get(next_i).getCoor());
 
             //Add full circle (2PI) to heading2 to "come around" the circle.
             if (heading1 > heading2 || i == next_i) {
@@ -258,14 +256,11 @@ public class TagRoundaboutAction extends JosmAction {
 
             double gap = heading2 - heading1;
             int fillers_to_make = ((int) (gap/max_gap))-1;
-            System.out.println("pair: "+i+" "+next_i+" "+heading1+ " "+ heading2 + " gap "+gap+ " fillers "+fillers_to_make);
             if (fillers_to_make > 0) {
                 double to_next = gap / (fillers_to_make+1);
-                System.out.println("to next: " +to_next);
                 double next;
                 for (int j = 1; j <= fillers_to_make; j++) {
                     next = heading1 + to_next * j;
-                    System.out.println("adding filler: "+j+ " heading: " +next);
                     filler_node = new Node(moveHeadingDistance(center, next, radi));
                     Main.main.undoRedo.add(new AddCommand(ds, filler_node));
                     ungrouped_nodes.add(filler_node);
@@ -431,10 +426,10 @@ public class TagRoundaboutAction extends JosmAction {
 
         @Override
         public int compare(Node a, Node b) {
-            double ah = center.heading(a.getCoor());
-            double bh = center.heading(b.getCoor());
+            double ah = center.bearing(a.getCoor());
+            double bh = center.bearing(b.getCoor());
             if (ah == bh) return 0;
-            return (ah < bh) ? 1 : -1;
+            return (ah > bh) ? 1 : -1;
         }
 
     } //END AngComp
@@ -508,7 +503,6 @@ public class TagRoundaboutAction extends JosmAction {
     public boolean moveWayEndNodeTowardsNextNode(Node node, double distance) {
         //some verification:
         List<Way> referedWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
-        for (Way w : referedWays) System.out.println(w);
 
         //node must be member of exactly one way
         if (referedWays.size() != 1) {
@@ -542,7 +536,7 @@ public class TagRoundaboutAction extends JosmAction {
 
         //Find heading to next node
         Node ajacent_node = way.getNeighbours(node).iterator().next();
-        double heading = node.getCoor().heading(ajacent_node.getCoor());
+        double heading = -node.getCoor().bearing(ajacent_node.getCoor());
 
         //Move the node towards the next node
         LatLon newpos = moveHeadingDistance(node.getCoor(), heading, distance);
@@ -576,7 +570,7 @@ public class TagRoundaboutAction extends JosmAction {
     }
 
     /**
-     * Output a message
+     * Output a warning message
      *
      * @param str Message
      */
@@ -585,7 +579,7 @@ public class TagRoundaboutAction extends JosmAction {
         t.setIcon(JOptionPane.WARNING_MESSAGE);
         t.setDuration(Notification.TIME_SHORT);
         t.show();
-        System.out.println(str);
+        Logging.warn(str);
     }
 
     public boolean selectFlareCandidates() {
