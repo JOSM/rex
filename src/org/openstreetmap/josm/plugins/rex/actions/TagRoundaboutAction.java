@@ -42,7 +42,8 @@ import org.openstreetmap.josm.tools.Shortcut;
  * @author Gorm
  */
 public class TagRoundaboutAction extends JosmAction {
-    private static final String TITLE = tr("Create Roundabout");
+
+    private static final long serialVersionUID = 1L;
 
     @Override
     protected void updateEnabledState() {
@@ -444,15 +445,9 @@ public class TagRoundaboutAction extends JosmAction {
     static class HighComp implements Comparator<Way> {
 
         /**
-         * To hold reference Node
-         */
-        private Node reference;
-
-        /**
          * Constructor with center specified
          */
         HighComp(Node reference) {
-            this.reference = reference;
         }
 
         @Override
