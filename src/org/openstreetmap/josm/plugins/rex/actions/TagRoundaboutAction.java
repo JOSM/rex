@@ -734,7 +734,7 @@ public class TagRoundaboutAction extends JosmAction {
         if (tWay.isClosed()) {
             //Closed
             //  0 1 2 3 4  0=4
-            if (new_pos < 0) new_pos += (tWay.getRealNodesCount());
+            if (new_pos < 0) new_pos += tWay.getRealNodesCount();
             if (new_pos >= tWay.getNodesCount()) new_pos = 0;
         } else {
             //Open
