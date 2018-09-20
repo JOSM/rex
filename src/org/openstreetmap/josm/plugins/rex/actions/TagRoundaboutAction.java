@@ -96,7 +96,7 @@ public class TagRoundaboutAction extends JosmAction {
                 && selectedNodes.size() == 1
                 ) {
             Node node = selectedNodes.get(0);
-            if (node.getKeys().get("highway") != "mini_roundabout") {
+            if (!"mini_roundabout".equals(node.getKeys().get("highway"))) {
                 //Make it a mini roundabout
                 tagAsRoundabout(node);
             } else {
@@ -185,7 +185,7 @@ public class TagRoundaboutAction extends JosmAction {
         tags.put("oneway", "");
 
         //If mistagged as a mini_roundabout, remove it
-        if (circle.getKeys().get("highway") == "mini_roundabout") {
+        if ("mini_roundabout".equals(circle.getKeys().get("highway"))) {
             tags.put("highway", "");
         }
 
@@ -418,7 +418,7 @@ public class TagRoundaboutAction extends JosmAction {
         /**
          * To hold center Node
          */
-        private LatLon center;
+        private final LatLon center;
 
         /**
          * Constructor with center specified
@@ -591,7 +591,7 @@ public class TagRoundaboutAction extends JosmAction {
             Way way = selectedWays.get(0);
             //And the way is closed (looks like roundabout)
             if (way.isClosed()) {
-                if (way.getKeys().get("junction") == "roundabout") {
+                if ("roundabout".equals(way.getKeys().get("junction"))) {
                     List<Node> nodes = way.getNodes();
                     List<Node> nodes2 = new ArrayList<>();
                     List<Way> refWays;
@@ -600,7 +600,7 @@ public class TagRoundaboutAction extends JosmAction {
                         for (Way hmmway : refWays) {
                             if (hmmway.isFirstLastNode(node)
                                     && hmmway != way
-                                    && hmmway.getKeys().get("oneway") != "yes"
+                                    && !"yes".equals(hmmway.getKeys().get("oneway"))
                                     ) {
                                 nodes2.add(node);
                             }
