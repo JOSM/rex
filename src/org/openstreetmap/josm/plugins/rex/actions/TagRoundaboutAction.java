@@ -35,6 +35,7 @@ import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.spi.preferences.Config;
 import org.openstreetmap.josm.tools.Logging;
 import org.openstreetmap.josm.tools.Shortcut;
+import org.openstreetmap.josm.tools.Utils;
 
 /**
  * Expands to a roundabout
@@ -88,8 +89,8 @@ public class TagRoundaboutAction extends JosmAction {
 
         //Figure out what we have to work with:
         Collection<OsmPrimitive> selection = getLayerManager().getEditDataSet().getSelected();
-        List<Node> selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
-        List<Way> selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
+        List<Node> selectedNodes = new ArrayList<>(Utils.filteredCollection(selection, Node.class));
+        List<Way> selectedWays = new ArrayList<>(Utils.filteredCollection(selection, Way.class));
 
         //If we have exactly one single node selected
         if (selection.size() == 1
@@ -210,7 +211,7 @@ public class TagRoundaboutAction extends JosmAction {
 
         //Copy tags from most prominent way.
         //TODO Prioritize through ways over single ways.
-        List<Way> refWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
+        List<Way> refWays = new ArrayList<>(Utils.filteredCollection(node.getReferrers(), Way.class));
         Collections.sort(refWays, new HighComp(node));
         Map<String, String> tagsToCopy = new HashMap<>();
         if (!refWays.isEmpty()) {
@@ -304,7 +305,7 @@ public class TagRoundaboutAction extends JosmAction {
      */
     private void splitAll(Node node) {
         //Find all ways connected to this node
-        List<Way> referedWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
+        List<Way> referedWays = new ArrayList<>(Utils.filteredCollection(node.getReferrers(), Way.class));
         //Walk through each and check if we are in the middle
         for (Way from : referedWays) {
             if (from.isClosed()) {
@@ -499,7 +500,7 @@ public class TagRoundaboutAction extends JosmAction {
      */
     public boolean moveWayEndNodeTowardsNextNode(Node node, double distance) {
         //some verification:
-        List<Way> referedWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
+        List<Way> referedWays = new ArrayList<>(Utils.filteredCollection(node.getReferrers(), Way.class));
 
         //node must be member of exactly one way
         if (referedWays.size() != 1) {
@@ -581,7 +582,7 @@ public class TagRoundaboutAction extends JosmAction {
 
     public boolean selectFlareCandidates() {
         Collection<OsmPrimitive> selection = getLayerManager().getEditDataSet().getSelected();
-        List<Way> selectedWays = OsmPrimitive.getFilteredList(selection, Way.class);
+        List<Way> selectedWays = new ArrayList<>(Utils.filteredCollection(selection, Way.class));
         //pri("Selecting flare candidates");
 
         //We have exactly one way selected
@@ -596,7 +597,7 @@ public class TagRoundaboutAction extends JosmAction {
                     List<Node> nodes2 = new ArrayList<>();
                     List<Way> refWays;
                     for (Node node : nodes) {
-                        refWays = OsmPrimitive.getFilteredList(node.getReferrers(), Way.class);
+                        refWays = new ArrayList<>(Utils.filteredCollection(node.getReferrers(), Way.class));
                         for (Way hmmway : refWays) {
                             if (hmmway.isFirstLastNode(node)
                                     && hmmway != way
@@ -631,7 +632,7 @@ public class TagRoundaboutAction extends JosmAction {
      */
     public boolean makeFlares() {
         Collection<OsmPrimitive> selection = getLayerManager().getEditDataSet().getSelected();
-        List<Node> selectedNodes = OsmPrimitive.getFilteredList(selection, Node.class);
+        List<Node> selectedNodes = new ArrayList<>(Utils.filteredCollection(selection, Node.class));
 
         //We have a reasonable amount of nodes selected
         if (0 < selectedNodes.size()
@@ -642,7 +643,7 @@ public class TagRoundaboutAction extends JosmAction {
             if (commonWays.size() == 1) {
                 Way tWay = commonWays.iterator().next();
                 for (Node cNode : selectedNodes) {
-                    List<Way> iWayCandidates = OsmPrimitive.getFilteredList(cNode.getReferrers(), Way.class);
+                    List<Way> iWayCandidates = new ArrayList<>(Utils.filteredCollection(cNode.getReferrers(), Way.class));
                     if (iWayCandidates.size() == 2) {
                         for (Way iWay : iWayCandidates) {
                             if (iWay != tWay) {
@@ -673,7 +674,7 @@ public class TagRoundaboutAction extends JosmAction {
 
         //We examine the referring ways of one of nodes
         Node n = nodes.get(0);
-        List<Way> nodeReferringWays = OsmPrimitive.getFilteredList(n.getReferrers(), Way.class);
+        List<Way> nodeReferringWays = new ArrayList<>(Utils.filteredCollection(n.getReferrers(), Way.class));
         for (Way referredWay : nodeReferringWays) {
             //if all nodes are a member
             if (wayContainsAllNodes(referredWay, nodes)) {
