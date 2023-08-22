@@ -24,6 +24,7 @@ import org.openstreetmap.josm.command.ChangeCommand;
 import org.openstreetmap.josm.command.ChangePropertyCommand;
 import org.openstreetmap.josm.command.SplitWayCommand;
 import org.openstreetmap.josm.data.UndoRedoHandler;
+import org.openstreetmap.josm.data.coor.ILatLon;
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.Node;
@@ -58,7 +59,6 @@ public class TagRoundaboutAction extends JosmAction {
     protected void updateEnabledState(Collection<? extends OsmPrimitive> selection) {
         if (selection == null || selection.isEmpty()) {
             setEnabled(false);
-            return;
         }
     }
 
@@ -76,7 +76,7 @@ public class TagRoundaboutAction extends JosmAction {
 
     /**
      * Called when the action is executed, typically with keyboard shortcut.
-     *
+     * <p>
      * This method looks at what is selected and performs one
      * step of the gradual process of making a roundabout.
      * After each step, we stop. This is to allow adjustments to be made
@@ -102,13 +102,13 @@ public class TagRoundaboutAction extends JosmAction {
                 tagAsRoundabout(node);
             } else {
                 //Get defaults
-                double radi = Config.getPref().getInt("rex.diameter_meter", 12) /2;
-                double max_gap = Math.toRadians(Config.getPref().getInt("rex.max_gap_degrees", 30));
+                double radi = Config.getPref().getInt("rex.diameter_meter", 12) / 2d;
+                double maxGap = Math.toRadians(Config.getPref().getInt("rex.max_gap_degrees", 30));
                 boolean lefthandtraffic = Config.getPref().getBoolean("mappaint.lefthandtraffic", false);
 
                 //See if user want another direction
                 if (node.getKeys().containsKey("direction") &&
-                        node.getKeys().get("direction").equals("clockwise")
+                        "clockwise".equals(node.getKeys().get("direction"))
                         ) {
                     lefthandtraffic = true;
                     Logging.debug("REX: direction overridden by direction=clockwise");
@@ -118,14 +118,14 @@ public class TagRoundaboutAction extends JosmAction {
                 if (node.getKeys().containsKey("diameter")) {
                     try {
                         int d = Integer.parseInt(node.getKeys().get("diameter"));
-                        radi = d/2;
+                        radi = d / 2d;
                         Logging.debug("REX: diameter overridden by tag diameter={0}", d);
                     } catch (NumberFormatException ex) {
                         Logging.warn("REX: failed getting diameter from node tag diameter");
                         Logging.warn(ex);
                     }
                 }
-                makeRoundabout(node, radi, lefthandtraffic, max_gap);
+                makeRoundabout(node, radi, lefthandtraffic, maxGap);
                 selectFlareCandidates();
             }
         }
@@ -155,7 +155,7 @@ public class TagRoundaboutAction extends JosmAction {
 
     /**
      * Tag node as roundabout
-     *
+     * <p>
      * This method is overloaded with (Way circle)
      * @param node node
      */
@@ -169,7 +169,7 @@ public class TagRoundaboutAction extends JosmAction {
 
     /**
      * Tag closed way as roundabout
-     *
+     * <p>
      * This method is overloaded with (Node node)
      * @param circle way
      */
@@ -203,16 +203,16 @@ public class TagRoundaboutAction extends JosmAction {
      * @param node            Node to expand to Roundabout
      * @param radi            Radius of roundabout in meter
      * @param lefthandtraffic Direction of roundabout
-     * @param max_gap         Max gap in radians between nodes to make it pretty
+     * @param maxGap         Max gap in radians between nodes to make it pretty
      */
-    public void makeRoundabout(Node node, double radi, boolean lefthandtraffic, double max_gap) {
+    public void makeRoundabout(Node node, double radi, boolean lefthandtraffic, double maxGap) {
         //Store center for later use
-        LatLon center = node.getCoor();
+        ILatLon center = node.getCoor();
 
         //Copy tags from most prominent way.
         //TODO Prioritize through ways over single ways.
         List<Way> refWays = new ArrayList<>(Utils.filteredCollection(node.getReferrers(), Way.class));
-        Collections.sort(refWays, new HighComp(node));
+        refWays.sort(new HighComp(node));
         Map<String, String> tagsToCopy = new HashMap<>();
         if (!refWays.isEmpty()) {
             tagsToCopy.putAll(refWays.get(0).getKeys());
@@ -230,57 +230,57 @@ public class TagRoundaboutAction extends JosmAction {
 
         //Unglue so the ways at node connected anymore
         //We'll continue working with the resulting nodes.
-        List<Node> ungrouped_nodes = unglueWays(node);
+        List<Node> ungroupedNodes = unglueWays(node);
 
         //Move nodes towards the next node in each way
-        for (Node n : ungrouped_nodes) {
+        for (Node n : ungroupedNodes) {
             moveWayEndNodeTowardsNextNode(n, radi);
         }
 
         //Always as righthand for the maths below to be correct
-        angularSort(ungrouped_nodes, center, false);
+        angularSort(ungroupedNodes, center, false);
 
         //Construct some nodes to make it pretty.
-        Node filler_node = null;
+        Node fillerNode;
         double heading1, heading2;
-        int s = ungrouped_nodes.size();
+        int s = ungroupedNodes.size();
         DataSet ds = OsmDataManager.getInstance().getEditDataSet();
-        for (int i = 0, next_i = 0; i < s; i++) {
-            next_i = i+1;
+        for (int i = 0, nextI; i < s; i++) {
+            nextI = i+1;
             //Reference back to start
-            if (next_i == s) next_i = 0;
+            if (nextI == s) nextI = 0;
 
-            heading1 = -center.bearing(ungrouped_nodes.get(i).getCoor());
-            heading2 = -center.bearing(ungrouped_nodes.get(next_i).getCoor());
+            heading1 = -center.bearing(ungroupedNodes.get(i));
+            heading2 = -center.bearing(ungroupedNodes.get(nextI));
 
             //Add full circle (2PI) to heading2 to "come around" the circle.
-            if (heading1 > heading2 || i == next_i) {
+            if (heading1 > heading2 || i == nextI) {
                 heading2 += Math.PI*2;
             }
 
             double gap = heading2 - heading1;
-            int fillers_to_make = ((int) (gap/max_gap))-1;
-            if (fillers_to_make > 0) {
-                double to_next = gap / (fillers_to_make+1);
+            int fillersToMake = ((int) (gap/maxGap))-1;
+            if (fillersToMake > 0) {
+                double toNext = gap / (fillersToMake+1);
                 double next;
-                for (int j = 1; j <= fillers_to_make; j++) {
-                    next = heading1 + to_next * j;
-                    filler_node = new Node(moveHeadingDistance(center, next, radi));
-                    UndoRedoHandler.getInstance().add(new AddCommand(ds, filler_node));
-                    ungrouped_nodes.add(filler_node);
+                for (int j = 1; j <= fillersToMake; j++) {
+                    next = heading1 + toNext * j;
+                    fillerNode = new Node(moveHeadingDistance(center, next, radi));
+                    UndoRedoHandler.getInstance().add(new AddCommand(ds, fillerNode));
+                    ungroupedNodes.add(fillerNode);
                 }
             }
         }
 
-        //Sort nodes around the the original node. Clockwise if desired.
+        //Sort nodes around the original node. Clockwise if desired.
         //We do this to avoid funny figure of eight roundabouts.
-        angularSort(ungrouped_nodes, center, lefthandtraffic);
+        angularSort(ungroupedNodes, center, lefthandtraffic);
 
         //Create the roundabout way
         Way newRoundaboutWay = new Way();
 
         //add the nodes to the way
-        newRoundaboutWay.setNodes(ungrouped_nodes);
+        newRoundaboutWay.setNodes(ungroupedNodes);
 
         //and the first again, closing it
         newRoundaboutWay.addNode(newRoundaboutWay.firstNode());
@@ -366,15 +366,15 @@ public class TagRoundaboutAction extends JosmAction {
 
     /**
      * Sub method of unglueWays.
-     *
+     * <p>
      * Creates a new version of originalWay,
      * with originalNode replaced with a duplicate of it.
-     *
+     * <p>
      * We assume that OrginalNode is in the way.
-     *
+     * <p>
      * We also put the new node into newNodes.
      */
-    private Way modifyWay(Node originalNode, Way originalWay, List<Node> newNodes) {
+    private static Way modifyWay(Node originalNode, Way originalWay, List<Node> newNodes) {
         // clone the node for the way
         Node newNode = new Node(originalNode, true /* clear OSM ID */);
         newNodes.add(newNode);
@@ -400,8 +400,8 @@ public class TagRoundaboutAction extends JosmAction {
      * @param center center
      * @param clockwise clockwise?
      */
-    private void angularSort(List<Node> nodes, LatLon center, boolean clockwise) {
-        Collections.sort(nodes, new AngComp(center));
+    private static void angularSort(List<Node> nodes, ILatLon center, boolean clockwise) {
+        nodes.sort(new AngComp(center));
         //Reverse if we dont want it clockwise
         if (!clockwise) {
             Collections.reverse(nodes);
@@ -411,7 +411,7 @@ public class TagRoundaboutAction extends JosmAction {
     /**
      * A comparator that may be used to sort Nodes by angle
      * relative to center.
-     * The comparator returnes true if Node a is
+     * The comparator returns true if a Node is
      * clockwise to b relative to center
      */
     static class AngComp implements Comparator<Node> {
@@ -419,19 +419,28 @@ public class TagRoundaboutAction extends JosmAction {
         /**
          * To hold center Node
          */
-        private final LatLon center;
+        private final ILatLon center;
 
         /**
          * Constructor with center specified
          */
-        AngComp(LatLon center) {
+        AngComp(ILatLon center) {
             this.center = center;
+        }
+
+        /**
+         * Constructor with center specified
+         * @deprecated since 2023-08-22, use {@link AngComp#AngComp(ILatLon)} instead
+         */
+        @Deprecated
+        AngComp(LatLon center) {
+            this((ILatLon) center);
         }
 
         @Override
         public int compare(Node a, Node b) {
-            double ah = center.bearing(a.getCoor());
-            double bh = center.bearing(b.getCoor());
+            double ah = center.bearing(a);
+            double bh = center.bearing(b);
             if (ah == bh) return 0;
             return (ah > bh) ? 1 : -1;
         }
@@ -480,14 +489,7 @@ public class TagRoundaboutAction extends JosmAction {
             String ahigh = a.getKeys().get("highway");
             String bhigh = b.getKeys().get("highway");
 
-            if (rankList.indexOf(ahigh) == rankList.indexOf(bhigh)) {
-                return 0;
-            }
-            if (rankList.indexOf(ahigh) < rankList.indexOf(bhigh)) {
-                return 1;
-            } else {
-                return -1;
-            }
+            return Integer.compare(rankList.indexOf(bhigh), rankList.indexOf(ahigh));
         }
     }
 
@@ -533,11 +535,11 @@ public class TagRoundaboutAction extends JosmAction {
         }
 
         //Find heading to next node
-        Node ajacent_node = way.getNeighbours(node).iterator().next();
-        double heading = -node.getCoor().bearing(ajacent_node.getCoor());
+        Node ajacentNode = way.getNeighbours(node).iterator().next();
+        double heading = -node.bearing(ajacentNode);
 
         //Move the node towards the next node
-        LatLon newpos = moveHeadingDistance(node.getCoor(), heading, distance);
+        LatLon newpos = moveHeadingDistance(node, heading, distance);
         node.setCoor(newpos);
 
         return true;
@@ -552,17 +554,17 @@ public class TagRoundaboutAction extends JosmAction {
      *
      * @return LatLon New position
      */
-    private LatLon moveHeadingDistance(LatLon start, double heading, double distance) {
-        double R = 6378100; //Radius of the Earth in meters
+    private static LatLon moveHeadingDistance(ILatLon start, double heading, double distance) {
+        double earthRadius = 6_378_100; //Radius of the Earth in meters
 
         double lat1 = Math.toRadians(start.lat());
         double lon1 = Math.toRadians(start.lon());
 
-        double lat2 = Math.asin(Math.sin(lat1) * Math.cos(distance/R) +
-                Math.cos(lat1) * Math.sin(distance/R) * Math.cos(heading));
+        double lat2 = Math.asin(Math.sin(lat1) * Math.cos(distance / earthRadius) +
+                Math.cos(lat1) * Math.sin(distance / earthRadius) * Math.cos(heading));
 
-        double lon2 = lon1 + Math.atan2(Math.sin(heading) * Math.sin((distance*-1)/R) * Math.cos(lat1),
-                Math.cos(distance/R) - Math.sin(lat1) * Math.sin(lat2));
+        double lon2 = lon1 + Math.atan2(Math.sin(heading) * Math.sin((distance * -1) / earthRadius) * Math.cos(lat1),
+                Math.cos(distance / earthRadius) - Math.sin(lat1) * Math.sin(lat2));
 
         return new LatLon(Math.toDegrees(lat2), Math.toDegrees(lon2));
     }
@@ -622,7 +624,7 @@ public class TagRoundaboutAction extends JosmAction {
 
     /**
      * Make flares.
-     *
+     * <p>
      *       split way at the next node
      *       determine direction of the connected roundabout way
      *       along the roundabout, create a new node half the distance to the next node in both directions
@@ -635,7 +637,7 @@ public class TagRoundaboutAction extends JosmAction {
         List<Node> selectedNodes = new ArrayList<>(Utils.filteredCollection(selection, Node.class));
 
         //We have a reasonable amount of nodes selected
-        if (0 < selectedNodes.size()
+        if (!selectedNodes.isEmpty()
                 && 10 > selectedNodes.size()
                 && selection.size() == selectedNodes.size()
                 ) {
@@ -669,7 +671,7 @@ public class TagRoundaboutAction extends JosmAction {
     /**
      * Find a set of ways that all nodes are a member of
      */
-    private Set<Way> findCommonWays(List<Node> nodes) {
+    private static Set<Way> findCommonWays(List<Node> nodes) {
         Set<Way> ret = new HashSet<>();
 
         //We examine the referring ways of one of nodes
@@ -685,7 +687,7 @@ public class TagRoundaboutAction extends JosmAction {
         return ret;
     }
 
-    private boolean wayContainsAllNodes(Way way, List<Node> nodes) {
+    private static boolean wayContainsAllNodes(Way way, List<Node> nodes) {
         for (Node node : nodes) {
             if (!way.containsNode(node)) return false;
         }
@@ -701,7 +703,7 @@ public class TagRoundaboutAction extends JosmAction {
      */
     public boolean makeFlare(Way iWay, Way tWay, Node cNode) {
         //pri("making flare on "+cNode);
-        int flare_length = 6; //meter
+        int flareLength = 6; //meter
         int direction = -1; //One arm of the flare will be connected to the next node
 
         if (iWay.isFirstLastNode(cNode) && tWay.containsNode(cNode)
@@ -719,26 +721,26 @@ public class TagRoundaboutAction extends JosmAction {
         Node iWayNewNode = a.get(0);
 
         //Move iWayNewNode towards ajacent node in iWay
-        if (!moveWayEndNodeTowardsNextNode(iWayNewNode, flare_length, iWay)) return false;
+        if (!moveWayEndNodeTowardsNextNode(iWayNewNode, flareLength, iWay)) return false;
 
         //Find relevant nodes for flare
         Node fs = iWayNewNode;
         Node fn1 = cNode;
 
         //Find the next node in tWay
-        int new_pos = tWay.getNodes().indexOf(cNode) + direction;
+        int newPos = tWay.getNodes().indexOf(cNode) + direction;
         if (tWay.isClosed()) {
             //Closed
             //  0 1 2 3 4  0=4
-            if (new_pos < 0) new_pos += tWay.getRealNodesCount();
-            if (new_pos >= tWay.getNodesCount()) new_pos = 0;
+            if (newPos < 0) newPos += tWay.getRealNodesCount();
+            if (newPos >= tWay.getNodesCount()) newPos = 0;
         } else {
             //Open
             // 0 1 2 3
-            if (new_pos < 0) new_pos += tWay.getRealNodesCount();
-            if (new_pos >= tWay.getNodesCount()) new_pos = 0;
+            if (newPos < 0) newPos += tWay.getRealNodesCount();
+            if (newPos >= tWay.getNodesCount()) newPos = 0;
         }
-        Node fn2 = tWay.getNodes().get(new_pos);
+        Node fn2 = tWay.getNodes().get(newPos);
 
         //Create flare ways
         Way flareWay1 = new Way();
