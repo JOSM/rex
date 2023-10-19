@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   version="1.1"
+   id="svg1"
+   xml:space="preserve"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+    <defs id="defs1" />
+    <g id="layer1">
+        <circle id="circle1"
+                cx="8"
+                cy="8"
+                style="fill:#ffffff;stroke:#000000;stroke-width:0.0569395px"
+                r="8" />
+        <path id="path1"
+              d="m 15.47,8.173 a 7.474,7.474 0 0 1 -14.942,0 7.474,7.474 0 1 1 14.942,0 z"
+              style="fill:#003399" />
+        <path id="path2"
+              d="M 3.31,9.524 5.19,7.527 v -1 l -1.384,1 c -0.05,-2 1.814,-4 3.564,-4 l -0.15,-1 c -3.07,1 -4.312,3 -4.371,5 l -1.396,-1 v 1 l 1.872,1.997 z"
+              style="fill:#ffffff;fill-rule:evenodd" />
+        <path id="path3"
+              d="m 11.93,11.52 -2.6,-1 -0.96,1 h 1.87 c -1.85,1 -4.36,1 -5.44,-1 l -0.73,1 c 2.07,2 4.77,2 6.64,1 l -0.47,2 1.01,-1 z"
+              style="fill:#ffffff;fill-rule:evenodd" />
+        <path id="path4"
+              d="m 9.09,2.527 0.73,3 0.98,1 -0.5,-2 c 1.91,1 2.57,3 1.9,4.997 h 0.89 c 1,-2.997 -0.48,-4.997 -2.31,-5.997 l 1.88,-1 h -1.01 z"
+              style="fill:#ffffff;fill-rule:evenodd" />
+    </g>
+</svg>
