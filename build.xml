@@ -1,23 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <project name="rex" default="dist" basedir=".">
-    <!-- enter the SVN commit message -->
-    <property name="commit.message" value="Commit message"/>
-    <!-- enter the *lowest* JOSM version this plugin is currently compatible with -->
-    <property name="plugin.main.version" value="18494"/>
-
-    <!-- Configure these properties (replace "..." accordingly).
+  <!-- enter the SVN commit message -->
+  <property name="commit.message" value="Commit message"/>
+  <!-- enter the *lowest* JOSM version this plugin is currently compatible with -->
+  <property name="plugin.main.version" value="19044"/>
+  <!-- Configure these properties (replace "..." accordingly).
          See https://josm.openstreetmap.de/wiki/DevelopersGuide/DevelopingPlugins
     -->
-    <property name="plugin.description" value="Expand a simple intersection to a roundabout in gradual steps. Select an intersection node or a roundabout and press Crtl-Shift-R"/>
-    <property name="plugin.author" value="Gorm Egeberg Johnsen"/>
-    <property name="plugin.class" value="org.openstreetmap.josm.plugins.rex.RoundaboutExpanderPlugin"/>
-    <!--<property name="plugin.early" value="..."/>-->
-    <property name="plugin.link" value="https://wiki.openstreetmap.org/wiki/JOSM/Plugins/RoundaboutExpander"/>
-    <property name="plugin.icon" value="images/dialogs/logo-rex.svg"/>
-    <!--<property name="plugin.requires" value="..."/>-->
-    <!--<property name="plugin.stage" value="..."/>-->
-    <property name="plugin.canloadatruntime" value="true"/>
-
-    <!-- ** include targets that all plugins have in common ** -->
-    <import file="../build-common.xml"/>
+  <property name="plugin.description" value="Expand a simple intersection to a roundabout in gradual steps. Select an intersection node or a roundabout and press Crtl-Shift-R"/>
+  <property name="plugin.author" value="Gorm Egeberg Johnsen"/>
+  <property name="plugin.class" value="org.openstreetmap.josm.plugins.rex.RoundaboutExpanderPlugin"/>
+  <!--<property name="plugin.early" value="..."/>-->
+  <property name="plugin.link" value="https://wiki.openstreetmap.org/wiki/JOSM/Plugins/RoundaboutExpander"/>
+  <property name="plugin.icon" value="images/dialogs/logo-rex.svg"/>
+  <!--<property name="plugin.requires" value="..."/>-->
+  <!--<property name="plugin.stage" value="..."/>-->
+  <property name="plugin.canloadatruntime" value="true"/>
+  <!-- ** include targets that all plugins have in common ** -->
+  <import file="../build-common.xml"/>
 </project>
