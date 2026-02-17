@@ -1,3 +1,4 @@
 build/*
 *.swp
 javadoc
+checkstyle-josm-rex.xml
